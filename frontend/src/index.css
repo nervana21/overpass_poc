@@ -1,0 +1,148 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@font-face {
+  font-family: 'Bitcoin';
+  src: url('https://fonts.coollabs.io/fonts/Bitcoin.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Root Variables */
+:root {
+  color-scheme: dark;
+  --primary: #a11be4;
+  --primary-hover: #cb41f9;
+  --secondary: #8e2de2;
+  --accent: #e45ae9;
+  --background: linear-gradient(145deg, #a11be4, #cb41f9);
+  --surface: #8e1c1c;
+  --error: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --text-primary: #ffffff;
+  --text-secondary: #bbbbbb;
+}
+
+/* Base Styles */
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Bitcoin', 'Inter', sans-serif;
+  background: var(--background);
+  background-image: 
+    linear-gradient(145deg, #a11be4, #cb41f9),
+    repeating-linear-gradient(
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.2) 2px,
+      rgba(0, 0, 0, 0.2) 4px
+    );
+  background-attachment: fixed;
+  color: var(--text-primary);
+  line-height: 1.6;
+  animation: scan 10s linear infinite;
+}
+
+@keyframes scan {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: 0 0, 0 100%;
+  }
+}
+
+/* Custom Components */
+@layer components {
+  .btn {
+    @apply px-6 py-3 rounded-full font-bold transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply bg-[#8e2de2] text-white 
+           shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_2px_3px_rgba(255,255,255,0.2),0_8px_15px_-5px_rgba(0,0,0,0.4)]
+           hover:bg-[#e45ae9] hover:transform hover:-translate-y-1
+           hover:shadow-[0_6px_12px_rgba(0,0,0,0.4),inset_0_2px_3px_rgba(255,255,255,0.2),0_12px_20px_-5px_rgba(0,0,0,0.4)]
+           active:transform active:translate-y-0.5
+           active:shadow-[0_2px_4px_rgba(0,0,0,0.2),inset_0_1px_2px_rgba(255,255,255,0.1),0_6px_10px_-5px_rgba(0,0,0,0.3)]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .input {
+    @apply px-4 py-3 bg-[#1e1e1e] border border-[#8e2de2] rounded-lg
+           focus:outline-none focus:ring-2 focus:ring-[#cb41f9]
+           text-white placeholder-gray-400
+           shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]
+           transition-all duration-300;
+  }
+
+  .card {
+    @apply bg-[#1e1e1e] rounded-xl p-8 
+           shadow-[0_8px_16px_rgba(0,0,0,0.4),inset_0_2px_3px_rgba(255,255,255,0.1)]
+           transform transition-all duration-300
+           hover:shadow-[0_12px_24px_rgba(0,0,0,0.5),inset_0_2px_3px_rgba(255,255,255,0.1)]
+           hover:-translate-y-1;
+  }
+
+  .progress-bar {
+    @apply w-full bg-[#2e1e3e] rounded-full h-3 
+           overflow-hidden shadow-inner;
+  }
+
+  .progress-bar-fill {
+    @apply h-full bg-gradient-to-r from-[#8e2de2] to-[#cb41f9]
+           transition-all duration-300 ease-out
+           shadow-[0_0_10px_rgba(203,65,249,0.5)];
+  }
+
+  .table-header {
+    @apply px-6 py-4 text-left text-[#cb41f9] font-bold border-b border-[#3e2e4e];
+  }
+
+  .table-cell {
+    @apply px-6 py-4 text-right border-b border-[#3e2e4e]
+           transition-colors duration-200
+           hover:bg-[#2e1e3e];
+  }
+}
+
+/* Custom Animations */
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(203, 65, 249, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(203, 65, 249, 0.4);
+  }
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #8634d8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #8e2de2;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cb41f9;
+}
+
+@media (min-width: 768px) {
+  .card {
+    @apply p-10;
+  }
+}

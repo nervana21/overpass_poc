@@ -1,0 +1,9 @@
+/target
+**/target
+Cargo.lock
+**/*.rs.bk
+**/node_modules
+**/dist
+**/.env
+**/.env.local
+**/pkg
