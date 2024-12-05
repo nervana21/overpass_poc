@@ -24,7 +24,7 @@ impl ClientStorage {
     pub fn save_state(&self, channel_id: &str, state: &JsValue) -> Result<(), JsValue> {
         // Store in localStorage
         self.storage.set_item(channel_id, &state.as_string().unwrap_or_default())
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| JsValue::from(format!("{:?}", e)))?;
             
         Ok(())
     }
