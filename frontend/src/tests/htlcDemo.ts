@@ -1,4 +1,6 @@
 import { init} from '../pkg/overpass_wasm';
+import { HTLCWrapper } from '../wrappers/htlc';
+
 async function demoHTLC() {
     await init();
 
@@ -7,7 +9,7 @@ async function demoHTLC() {
     const hashLock = new Uint8Array(await crypto.subtle.digest('SHA-256', preimage));
 
     // Create HTLC contract
-    const htlc = new HTLCContract(
+    const htlc = new HTLCWrapper(
         hashLock,
         Math.floor(Date.now() / 1000) + 3600, // Time lock: 1 hour from now
         1000, // Amount
@@ -20,7 +22,7 @@ async function demoHTLC() {
     // Claim the HTLC
     try {
         htlc.claim(preimage);
-        console.log('HTLC claimed. New state:', htlc.state());
+        console.log('HTLC claimed. New state:', htlc.getState());
     } catch (err) {
         console.error('Failed to claim HTLC:', err);
     }

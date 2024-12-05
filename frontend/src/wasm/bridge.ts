@@ -7,7 +7,9 @@ export async function initWasm(): Promise<WasmModule> {
   if (!wasmInstance) {
     try {
       const wasm = await import('@/pkg/overpass_wasm');
-      await wasm.init();
+      if (typeof wasm.init === 'function') {
+        await wasm.init();
+      }
       wasmInstance = wasm as unknown as WasmModule;
       return wasmInstance;
     } catch (err) {
