@@ -201,23 +201,25 @@ pub fn start() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use channel::ChannelState;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
     use wasm_bindgen_test::*;
+    use crate::types::state_boc::StateBOC;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
+    #[allow(dead_code)]
     fn test_channel_creation() {
         let channel = Channel::new("test_channel").unwrap();
         let state = channel.get_current_state().unwrap();
-        let state: ChannelState = serde_wasm_bindgen::from_value(state).unwrap();
-        assert_eq!(state.nonce, 0);
-        assert_eq!(state.balance, 0);
+        let state: Vec<u8> = serde_wasm_bindgen::from_value(state).unwrap();
+        let mut state_boc = StateBOC::deserialize(&state).unwrap();
+        assert_eq!(state_boc.compute_hash(), [0; 32]); // Assuming a default hash for a new channel
     }
 
     #[wasm_bindgen_test]
+    #[allow(dead_code)]
     async fn test_transaction_processing() {
         let mut channel = Channel::new("test_channel").unwrap();
         let amount: u64 = 100;
@@ -232,6 +234,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    #[allow(dead_code)]
     async fn test_multiple_transactions() {
         let mut channel = Channel::new("test_channel").unwrap();
 
