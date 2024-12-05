@@ -1,5 +1,5 @@
 import { Buffer } from 'buffer';
-import { ChannelManager } from '../hooks/useChannel'; // Path to your ChannelManager
+import { ChannelManager } from './hooks/useChannel'; // Path to your ChannelManager
 
 interface CustomPerformanceEntry extends PerformanceEntry {
   operation: string;
