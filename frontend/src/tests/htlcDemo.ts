@@ -1,6 +1,4 @@
-import init, { HTLCContract, HTLCState } from '../pkg/overpass_wasm.d';
-import init, { HTLCContract, HTLCState } from '../pkg/overpass_wasm.js';
-
+import { init} from '../pkg/overpass_wasm';
 async function demoHTLC() {
     await init();
 

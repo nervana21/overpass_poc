@@ -26,7 +26,9 @@ export interface ChannelConfig {
   export async function initWasm() {
     if (!wasmModule) {
       const wasm = await import('@/pkg/overpass_wasm');
-      await wasm.default();
+      if (typeof wasm.init === 'function') {
+        await wasm.init();
+      }
       wasmModule = wasm;
     }
     return wasmModule;

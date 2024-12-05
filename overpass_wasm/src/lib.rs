@@ -189,3 +189,52 @@ pub fn start() {
     console_error_panic_hook::set_once();
     console_log!("Overpass WASM module initialized");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use channel::ChannelState;
+    use wasm_bindgen_test::*;
+    use wasm_bindgen_futures::JsFuture;
+    use wasm_bindgen::JsCast;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    fn test_channel_creation() {
+        let channel = Channel::new("test_channel").unwrap();
+        let state = channel.get_current_state().unwrap();
+        let state: ChannelState = serde_wasm_bindgen::from_value(state).unwrap();
+        assert_eq!(state.nonce, 0);
+        assert_eq!(state.balance, 0);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_transaction_processing() {
+        let mut channel = Channel::new("test_channel").unwrap();
+        let amount: u64 = 100;
+        
+        let promise = channel.process_transaction(&amount.to_le_bytes()).unwrap();
+        let promise = promise.dyn_into::<js_sys::Promise>().unwrap();
+        let result = JsFuture::from(promise).await.unwrap();
+        
+        let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
+        assert_eq!(update.balance, amount);
+        assert_eq!(update.nonce, 1);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_multiple_transactions() {
+        let mut channel = Channel::new("test_channel").unwrap();
+        
+        for i in 1..=3 {
+            let amount = 100 * i as u64;
+            let promise = channel.process_transaction(&amount.to_le_bytes()).unwrap();
+            let promise = promise.dyn_into::<js_sys::Promise>().unwrap();
+            let result = JsFuture::from(promise).await.unwrap();
+            
+            let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
+            assert_eq!(update.nonce, i as u64);
+        }
+    }
+}

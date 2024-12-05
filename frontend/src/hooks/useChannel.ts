@@ -1,7 +1,7 @@
 // src// File: frontend/src/hooks/useChannel.ts
 
 import { useState, useCallback } from 'react';
-import init, { Channel } from '@/pkg/overpass_wasm';
+import { init, Channel } from '@/pkg/overpass_wasm';
 
 interface ChannelConfig {
     network: 'mainnet' | 'testnet' | 'regtest';
