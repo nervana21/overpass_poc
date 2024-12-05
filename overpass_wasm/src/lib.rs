@@ -1,13 +1,13 @@
-pub mod types;
+pub mod channel;
 pub mod error;
 pub mod storage;
-pub mod channel;
-use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use crate::types::ops::{OpCode, WalletOpCode, ChannelOpCode};
-use crate::types::dag_boc::DAGBOC;
-use crate::types::state_boc::StateBOC;
+pub mod types;
 use crate::types::cell_builder::{Cell, CellBuilder};
+use crate::types::dag_boc::DAGBOC;
+use crate::types::ops::{ChannelOpCode, OpCode, WalletOpCode};
+use crate::types::state_boc::StateBOC;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 // Remove the unused import
 // use types::cell_builder;
@@ -15,7 +15,6 @@ use crate::types::cell_builder::{Cell, CellBuilder};
 // Rest of WASM implementation...
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 
 #[wasm_bindgen]
 extern "C" {
@@ -71,7 +70,8 @@ impl Channel {
             balance: config.initial_balance,
         };
 
-        cell_builder.add_cell(initial_cell)
+        cell_builder
+            .add_cell(initial_cell)
             .map_err(|e| JsValue::from_str(&format!("Cell initialization error: {}", e)))?;
 
         let channel = Channel {
@@ -98,7 +98,8 @@ impl Channel {
 
         self.state_boc.add_cell(cell);
 
-        self.dag_boc.process_op_code(op)
+        self.dag_boc
+            .process_op_code(op)
             .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
 
         self.nonce += 1;
@@ -121,14 +122,17 @@ impl Channel {
 
         self.state_boc.add_cell(cell);
 
-        self.dag_boc.process_op_code(op)
+        self.dag_boc
+            .process_op_code(op)
             .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
 
         self.nonce += 1;
 
         self.serialize_state()
     }
-    #[wasm_bindgen]    pub fn process_transaction(&mut self, tx_data: &[u8]) -> Result<JsValue, JsValue> {        console_log!("Processing transaction");
+    #[wasm_bindgen]
+    pub fn process_transaction(&mut self, tx_data: &[u8]) -> Result<JsValue, JsValue> {
+        console_log!("Processing transaction");
 
         let op = OpCode::Wallet(WalletOpCode::ProcessTransaction);
         let cell = crate::types::state_boc::Cell {
@@ -142,7 +146,8 @@ impl Channel {
 
         self.state_boc.add_cell(cell);
 
-        self.dag_boc.process_op_code(op)
+        self.dag_boc
+            .process_op_code(op)
             .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
 
         self.nonce += 1;
@@ -154,7 +159,8 @@ impl Channel {
         console_log!("Finalizing state");
 
         let op = OpCode::Channel(ChannelOpCode::FinalizeState);
-        self.dag_boc.process_op_code(op)
+        self.dag_boc
+            .process_op_code(op)
             .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
 
         let final_hash = self.state_boc.compute_hash();
@@ -177,7 +183,9 @@ impl Channel {
     }
 
     fn serialize_state(&self) -> Result<JsValue, JsValue> {
-        let state_boc_bytes = self.state_boc.serialize()
+        let state_boc_bytes = self
+            .state_boc
+            .serialize()
             .map_err(|e| JsValue::from_str(&format!("BOC serialization error: {}", e)))?;
         Ok(serde_wasm_bindgen::to_value(&state_boc_bytes)
             .map_err(|e| JsValue::from_str(&format!("State serialization error: {}", e)))?)
@@ -194,9 +202,9 @@ pub fn start() {
 mod tests {
     use super::*;
     use channel::ChannelState;
-    use wasm_bindgen_test::*;
-    use wasm_bindgen_futures::JsFuture;
     use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -213,11 +221,11 @@ mod tests {
     async fn test_transaction_processing() {
         let mut channel = Channel::new("test_channel").unwrap();
         let amount: u64 = 100;
-        
+
         let promise = channel.process_transaction(&amount.to_le_bytes()).unwrap();
         let promise = promise.dyn_into::<js_sys::Promise>().unwrap();
         let result = JsFuture::from(promise).await.unwrap();
-        
+
         let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
         assert_eq!(update.balance, amount);
         assert_eq!(update.nonce, 1);
@@ -226,13 +234,13 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_multiple_transactions() {
         let mut channel = Channel::new("test_channel").unwrap();
-        
+
         for i in 1..=3 {
             let amount = 100 * i as u64;
             let promise = channel.process_transaction(&amount.to_le_bytes()).unwrap();
             let promise = promise.dyn_into::<js_sys::Promise>().unwrap();
             let result = JsFuture::from(promise).await.unwrap();
-            
+
             let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
             assert_eq!(update.nonce, i as u64);
         }
