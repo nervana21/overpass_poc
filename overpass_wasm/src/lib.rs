@@ -2,7 +2,6 @@ pub mod types;
 pub mod error;
 pub mod storage;
 pub mod channel;
-
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::types::ops::{OpCode, WalletOpCode, ChannelOpCode};
@@ -119,7 +118,7 @@ impl Channel {
             references: Vec::new(),
             slice: None,
             nonce: self.nonce,
-            balance: amount,
+            balance: 0,
         };
 
         self.state_boc.add_cell(cell);
@@ -130,8 +129,8 @@ impl Channel {
         self.nonce += 1;
 
         self.serialize_state()
-    }    #[wasm_bindgen]
-    pub fn process_transaction(&mut self, tx_data: &[u8]) -> Result<JsValue, JsValue> {        console_log!("Processing transaction");
+    }
+    #[wasm_bindgen]    pub fn process_transaction(&mut self, tx_data: &[u8]) -> Result<JsValue, JsValue> {        console_log!("Processing transaction");
 
         let op = OpCode::Wallet(WalletOpCode::ProcessTransaction);
         let cell = crate::types::state_boc::Cell {
