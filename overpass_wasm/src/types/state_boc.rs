@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use serde::ser::SerializeStruct;
 use anyhow::Result;
-use sha2::{Sha256, Digest}; // For hash computation
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256}; // For hash computation
 
 /// Represents a state init object.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -77,7 +77,7 @@ impl StateBOC {
     /// Computes the SHA256 hash of the current state
     pub fn compute_hash(&mut self) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        
+
         for cell in &self.state_cells {
             hasher.update(&cell.data);
             hasher.update(cell.balance.to_le_bytes());
