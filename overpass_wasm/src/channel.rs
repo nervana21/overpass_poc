@@ -1,8 +1,13 @@
+// overpass_wasm/src/channel.rs
+
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::to_value;
 use web_sys::{Storage, Window};
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
+use wasm_bindgen_futures::future_to_promise;
+use wasm_bindgen_futures::JsFuture;
 
 // Error type for channel-specific errors
 #[derive(Debug, Clone)]
@@ -21,7 +26,7 @@ impl From<ChannelError> for JsValue {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StateUpdate {
     pub nonce: u64,
     pub balance: u64,
@@ -31,7 +36,7 @@ pub struct StateUpdate {
     pub signature: Vec<u8>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChannelState {
     pub nonce: u64,
     pub balance: u64,
@@ -88,7 +93,7 @@ impl Transaction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct MerkleTree {
     nodes: HashMap<usize, Vec<u8>>,
     depth: usize,
@@ -162,8 +167,7 @@ impl MerkleTree {
         }
         
         &current_hash == root
-    }
-}
+    }}
 
 #[wasm_bindgen]
 pub struct Channel {
@@ -171,6 +175,32 @@ pub struct Channel {
     current_state: ChannelState,
     pending_transactions: Vec<Transaction>,
     merkle_tree: MerkleTree,
+}
+
+#[wasm_bindgen]
+#[derive(Serialize)]
+struct SerializableTransaction {
+    id: String,
+    amount: u64,
+    sender: String,
+    recipient: String,
+    timestamp: u64,
+    signature: Vec<u8>,
+    nonce: u64
+}
+
+impl From<&Transaction> for SerializableTransaction {
+    fn from(transaction: &Transaction) -> Self {
+        SerializableTransaction {
+            id: format!("{:x}", sha2::Sha256::digest(&transaction.signature)), // Using SHA256 hash of signature as a unique identifier
+            amount: transaction.amount,
+            sender: "sender_address".to_string(), // Replace with actual sender
+            recipient: "recipient_address".to_string(), // Replace with actual recipient
+            timestamp: transaction.timestamp,
+            signature: transaction.signature.clone(),
+            nonce: transaction.nonce,
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -191,7 +221,6 @@ impl Channel {
         })
     }
 
-    #[wasm_bindgen]
     pub fn process_transaction(&mut self, amount: u64, data: Vec<u8>) -> js_sys::Promise {
         let current_state = self.current_state.clone();
         let merkle_tree = self.merkle_tree.clone();
@@ -204,7 +233,8 @@ impl Channel {
                 return Err(ChannelError::InvalidAmount.into());
             }
 
-            if current_state.balance + amount > u64::MAX {
+            if current_state.balance + amount < current_state.balance {
+                // Overflow check
                 return Err(ChannelError::InvalidAmount.into());
             }
 
@@ -216,15 +246,15 @@ impl Channel {
             );
 
             // Generate and verify proof
-            let proof = Self::generate_proof(&transaction)?;
-            if !Self::verify_transaction_proof(&proof, &transaction) {
+            let proof = Channel::generate_proof(&transaction)?;
+            if !Channel::verify_transaction_proof(&proof, &transaction) {
                 return Err(ChannelError::InvalidProof.into());
             }
 
             // Update merkle tree and compute new state
             let mut tree = merkle_tree;
             let merkle_root = tree.add_transaction(&transaction);
-            let cell_hash = Self::compute_cell_hash(&transaction);
+            let cell_hash = Channel::compute_cell_hash(&transaction);
 
             let update = StateUpdate {
                 nonce: transaction.nonce,
@@ -236,7 +266,7 @@ impl Channel {
             };
 
             // Broadcast update to network
-            Self::broadcast_update(&update).await?;
+            Channel::broadcast_update(&update).await?;
 
             // Update local state
             let mut new_transactions = pending_transactions;
@@ -253,7 +283,7 @@ impl Channel {
             Ok(to_value(&update).unwrap())
         };
 
-        wasm_bindgen_futures::future_to_promise(future)
+        future_to_promise(future)
     }
 
     fn generate_proof(transaction: &Transaction) -> Result<Vec<u8>, JsValue> {
@@ -269,7 +299,7 @@ impl Channel {
         proof == transaction_hash.as_slice()
     }
 
-    async fn broadcast_update(update: &StateUpdate) -> Result<(), JsValue> {
+    async fn broadcast_update(_update: &StateUpdate) -> Result<(), JsValue> {
         // In production, this would send the update to a network
         let window = web_sys::window()
             .ok_or_else(|| JsValue::from_str("No window found"))?;
@@ -282,7 +312,7 @@ impl Channel {
         let start = performance.now();
         while performance.now() - start < 100.0 {
             // Simulate processing
-            wasm_bindgen_futures::JsFuture::from(js_sys::Promise::new(&mut |resolve, _| {
+            JsFuture::from(js_sys::Promise::new(&mut |resolve, _| {
                 resolve.call0(&JsValue::NULL).unwrap();
             })).await?;
         }
@@ -296,17 +326,18 @@ impl Channel {
         hasher.finalize().to_vec()
     }
 
-    #[wasm_bindgen]
     pub fn get_state(&self) -> Result<JsValue, JsValue> {
         Ok(to_value(&self.current_state)?)
     }
 
-    #[wasm_bindgen]
     pub fn get_pending_transactions(&self) -> Result<JsValue, JsValue> {
-        Ok(to_value(&self.pending_transactions)?)
+        let serializable_transactions: Vec<SerializableTransaction> = self.pending_transactions
+            .iter()
+            .map(|t| SerializableTransaction::from(t))
+            .collect();
+        Ok(to_value(&serializable_transactions)?)
     }
 
-    #[wasm_bindgen]
     pub fn finalize(&mut self) -> Result<JsValue, JsValue> {
         self.current_state.is_finalized = true;
         self.storage.save_state("channel-1", &self.current_state)?;
@@ -358,7 +389,7 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
-    async fn test_channel_creation() {
+    fn test_channel_creation() {
         let channel = Channel::new().unwrap();
         let state = channel.get_state().unwrap();
         let state: ChannelState = serde_wasm_bindgen::from_value(state).unwrap();
@@ -372,9 +403,8 @@ mod tests {
         let amount = 100;
         let data = vec![1, 2, 3];
         
-        let result = wasm_bindgen_futures::JsFuture::from(
-            channel.process_transaction(amount, data)
-        ).await.unwrap();
+        let promise = channel.process_transaction(amount, data);
+        let result = JsFuture::from(promise).await.unwrap();
         
         let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
         assert_eq!(update.balance, amount);
@@ -386,9 +416,8 @@ mod tests {
         let mut channel = Channel::new().unwrap();
         
         for i in 1..=3 {
-            let result = wasm_bindgen_futures::JsFuture::from(
-                channel.process_transaction(100 * i as u64, vec![i as u8])
-            ).await.unwrap();
+            let promise = channel.process_transaction(100 * i as u64, vec![i as u8]);
+            let result = JsFuture::from(promise).await.unwrap();
             
             let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
             assert_eq!(update.nonce, i as u64);

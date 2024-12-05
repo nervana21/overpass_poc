@@ -3,18 +3,20 @@ pub mod error;
 pub mod storage;
 pub mod channel;
 
-
-// Rest of WASM implementation...
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-use types::cell_builder;
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::types::ops::{OpCode, WalletOpCode, ChannelOpCode};
 use crate::types::dag_boc::DAGBOC;
 use crate::types::state_boc::StateBOC;
 use crate::types::cell_builder::{Cell, CellBuilder};
+
+// Remove the unused import
+// use types::cell_builder;
+
+// Rest of WASM implementation...
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 
 #[wasm_bindgen]
 extern "C" {
@@ -128,9 +130,7 @@ impl Channel {
         self.nonce += 1;
 
         self.serialize_state()
-    }
-
-    #[wasm_bindgen]
+    }    #[wasm_bindgen]
     pub fn process_transaction(&mut self, tx_data: &[u8]) -> Result<JsValue, JsValue> {        console_log!("Processing transaction");
 
         let op = OpCode::Wallet(WalletOpCode::ProcessTransaction);
@@ -172,8 +172,8 @@ impl Channel {
     }
 
     #[wasm_bindgen]
-    pub fn verify_state(&self, state_bytes: &[u8]) -> Result<bool, JsValue> {
-        let submitted_state = StateBOC::deserialize(state_bytes)
+    pub fn verify_state(&mut self, state_bytes: &[u8]) -> Result<bool, JsValue> {
+        let mut submitted_state = StateBOC::deserialize(state_bytes)
             .map_err(|e| JsValue::from_str(&format!("State deserialization error: {}", e)))?;
 
         Ok(self.state_boc.compute_hash() == submitted_state.compute_hash())
