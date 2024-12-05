@@ -7,7 +7,7 @@ use bitcoin::{
     blockdata::script::ScriptBuf,
     locktime,
     opcodes::all::OP_RETURN,
-    script::{Builder, PushBytesBuf, Script},
+    script::Builder,
     OutPoint, Sequence, Transaction, TxIn, TxOut, Witness,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -52,12 +52,11 @@ impl BitcoinClient {
             .encode()
             .map_err(|e| format!("Failed to encode metadata: {}", e))?;
 
-
         Ok(Builder::new()
             .push_opcode(OP_RETURN)
+            .push_slice(&encoded)
             .into_script())
     }
-
     /// Creates a new Bitcoin transaction.
     pub fn create_transaction(
         &self,

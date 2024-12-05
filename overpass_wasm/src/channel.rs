@@ -203,7 +203,6 @@ impl From<&Transaction> for SerializableTransaction {
         }
     }
 }
-
 #[wasm_bindgen]
 impl Channel {
     #[wasm_bindgen(constructor)]
@@ -298,13 +297,10 @@ impl Channel {
 
     async fn broadcast_update(_update: &StateUpdate) -> Result<(), JsValue> {
         // In production, this would send the update to a network
-        let window = web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
+        let _window = web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
 
-        let performance = window    
-            .performance()    
-            .ok_or_else(|| JsValue::from_str("Performance API not available"))?;
-        let start = performance.now();
-        while performance.now() - start < 100.0 {
+        let start = js_sys::Date::now();
+        while js_sys::Date::now() - start < 100.0 {
             // Simulate processing
             JsFuture::from(js_sys::Promise::new(&mut |resolve, _| {
                 resolve.call0(&JsValue::NULL).unwrap();
@@ -314,7 +310,6 @@ impl Channel {
 
         Ok(())
     }
-
     fn compute_cell_hash(transaction: &Transaction) -> Vec<u8> {
         let mut hasher = Sha256::new();
         hasher.update(&transaction.serialize());
