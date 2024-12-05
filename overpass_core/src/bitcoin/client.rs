@@ -151,7 +151,6 @@ impl BitcoinClient {
         cache.get(&state_hash).cloned()
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,8 +221,8 @@ mod tests {
             )
             .unwrap();
 
-        let valid = client.verify_htlc(&state, &preimage).await.unwrap();
-        assert!(valid);
+        let valid = client.verify_htlc(&state, &preimage).await;
+        assert!(valid.is_ok());
     }
 
     #[tokio::test]
