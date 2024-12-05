@@ -219,29 +219,49 @@ mod tests {
         let state = channel.get_current_state().unwrap();
         let state_bytes: Vec<u8> = serde_wasm_bindgen::from_value(state).unwrap();
         let mut state_boc = StateBOC::deserialize(&state_bytes).unwrap();
-        assert!(state_boc.compute_hash() != [0; 32]);
+        
+        // Assert that a new channel's state is properly initialized
+        assert_ne!(state_boc.compute_hash(), [0; 32], "New channel should have a non-zero state hash");
     }
 
     #[wasm_bindgen_test]
     fn test_transaction_processing() {
         let mut channel = Channel::new(&create_test_config()).unwrap();
         let tx_data = vec![1, 2, 3, 4];
+        
+        // Process transaction and verify state change
         let result = channel.process_transaction(&tx_data).unwrap();
         let state_bytes: Vec<u8> = serde_wasm_bindgen::from_value(result).unwrap();
         let mut state_boc = StateBOC::deserialize(&state_bytes).unwrap();
-        assert!(state_boc.compute_hash() != [0; 32]);
+        
+        let initial_hash = state_boc.compute_hash();
+        assert_ne!(initial_hash, [0; 32], "Transaction should modify channel state");
     }
 
     #[wasm_bindgen_test]
     fn test_multiple_transactions() {
         let mut channel = Channel::new(&create_test_config()).unwrap();
         let tx_data = vec![1, 2, 3, 4];
+        let mut previous_hash = [0; 32];
 
-        for _ in 0..3 {
+        for i in 0..3 {
             let result = channel.process_transaction(&tx_data).unwrap();
             let state_bytes: Vec<u8> = serde_wasm_bindgen::from_value(result).unwrap();
             let mut state_boc = StateBOC::deserialize(&state_bytes).unwrap();
-            assert!(state_boc.compute_hash() != [0; 32]);
+            let current_hash = state_boc.compute_hash();
+            
+            // Ensure state changes with each transaction
+            assert_ne!(current_hash, [0; 32], "Transaction {i} should produce valid state");
+            
+            if i > 0 {
+                assert_ne!(
+                    current_hash, 
+                    previous_hash,
+                    "Transaction {i} should produce different state than previous"
+                );
+            }
+            
+            previous_hash = current_hash;
         }
     }
 }
