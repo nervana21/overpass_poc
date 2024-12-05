@@ -29,7 +29,6 @@ macro_rules! console_log {
 
 #[wasm_bindgen]
 pub struct Channel {
-    config: ChannelConfig,
     state_boc: StateBOC,
     dag_boc: DAGBOC,
     nonce: u64,
@@ -76,7 +75,6 @@ impl Channel {
             .map_err(|e| JsValue::from_str(&format!("Cell initialization error: {}", e)))?;
 
         let channel = Channel {
-            config,
             state_boc,
             dag_boc,
             nonce: 0,
