@@ -1,15 +1,23 @@
 // overpass_wasm/src/channel.rs
 
 use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen::to_value;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::future_to_promise;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{Storage, Window};
+use wasm_bindgen::convert::RefFromWasmAbi;
+use std::mem::ManuallyDrop;
+use crate::storage::ClientStorage;
 
+#[derive(Serialize, Deserialize)]
+pub struct SerializableChannel {
+    current_state: ChannelState,
+    pending_transactions: Vec<SerializableTransaction>,
+}
 
+#[derive(Serialize, Deserialize)]
+pub struct SerializableTransaction {
+    // Add fields for SerializableTransaction here
+}
 
 // Error type for channel-specific errors
 #[derive(Debug, Clone)]
@@ -169,8 +177,6 @@ impl MerkleTree {
 
         &current_hash == root
     }}
-
-#[wasm_bindgen]
 pub struct Channel {
     storage: ClientStorage,
     current_state: ChannelState,
@@ -189,7 +195,6 @@ struct SerializableTransaction {
     signature: Vec<u8>,
     nonce: u64,
 }
-
 impl From<&Transaction> for SerializableTransaction {
     fn from(transaction: &Transaction) -> Self {
         SerializableTransaction {
@@ -203,11 +208,14 @@ impl From<&Transaction> for SerializableTransaction {
         }
     }
 }
+
+
+
 #[wasm_bindgen]
 impl Channel {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Result<Channel, JsValue> {
-        let storage = ClientStorage::new()?;
+        let storage = crate::storage::ClientStorage::new()?;
         let current_state = match storage.load_state("channel-1")? {
             Some(state) => state,
             None => ChannelState::default(),
@@ -221,197 +229,73 @@ impl Channel {
         })
     }
 
-    pub fn process_transaction(&mut self, amount: u64, data: Vec<u8>) -> js_sys::Promise {
-        let current_state = self.current_state.clone();
-        let merkle_tree = self.merkle_tree.clone();
-        let storage = self.storage.clone();
-        let pending_transactions = self.pending_transactions.clone();
-
-        let future = async move {
-            // Validate transaction
-            if amount == 0 {
-                return Err(ChannelError::InvalidAmount.into());
-            }
-
-            if current_state.balance + amount < current_state.balance {
-                // Overflow check
-                return Err(ChannelError::InvalidAmount.into());
-            }
-
-            // Create and validate transaction
-            let transaction = Transaction::new(amount, data, current_state.nonce + 1);
-
-            // Generate and verify proof
-            let proof = Channel::generate_proof(&transaction)?;
-            if !Channel::verify_transaction_proof(&proof, &transaction) {
-                return Err(ChannelError::InvalidProof.into());
-            }
-
-            // Update merkle tree and compute new state
-            let mut tree = merkle_tree;
-            let merkle_root = tree.add_transaction(&transaction);
-            let cell_hash = Channel::compute_cell_hash(&transaction);
-
-            let update = StateUpdate {
-                nonce: transaction.nonce,
-                balance: current_state.balance + amount,
-                merkle_root,
-                cell_hash,
-                timestamp: transaction.timestamp,
-                signature: transaction.signature.clone(),
-            };
-
-            // Broadcast update to network
-            Channel::broadcast_update(&update).await?;
-
-            // Update local state
-            let mut new_transactions = pending_transactions;
-            new_transactions.push(transaction);
-
-            let mut new_state = current_state;
-            new_state.nonce = update.nonce;
-            new_state.balance = update.balance;
-            new_state.last_update = update.timestamp;
-
-            // Persist state
-            storage.save_state("channel-1", &new_state)?;
-
-            Ok(to_value(&update).unwrap())
+    #[wasm_bindgen(js_name = fromJsValue)]
+    pub fn from_js_value(value: &JsValue) -> Result<Channel, JsValue> {
+        serde_wasm_bindgen::from_value(value.clone()).map_err(|e| e.into())
+    }
+}
+#[wasm_bindgen]
+impl Channel {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<Channel, JsValue> {
+        let storage = crate::storage::ClientStorage::new()?;
+        let current_state = match storage.load_state("channel-1")? {
+            Some(state) => state,
+            None => ChannelState::default(),
         };
 
-        future_to_promise(future)
+        Ok(Self {
+            storage,
+            current_state,
+            pending_transactions: Vec::new(),
+            merkle_tree: MerkleTree::new(),
+        })
     }
 
-    fn generate_proof(transaction: &Transaction) -> Result<Vec<u8>, JsValue> {
-        let mut hasher = Sha256::new();
-        hasher.update(&transaction.serialize());
-        Ok(hasher.finalize().to_vec())
+    #[wasm_bindgen(js_name = fromJsValue)]
+    pub fn from_js_value(value: &JsValue) -> Result<Channel, JsValue> {
+        serde_wasm_bindgen::from_value(value.clone()).map_err(|e| JsValue::from_str(&e.to_string()))
     }
-
-    fn verify_transaction_proof(proof: &[u8], transaction: &Transaction) -> bool {
-        let mut hasher = Sha256::new();
-        hasher.update(&transaction.serialize());
-        let transaction_hash = hasher.finalize();
-        proof == transaction_hash.as_slice()
-    }
-
-    async fn broadcast_update(_update: &StateUpdate) -> Result<(), JsValue> {
-        // In production, this would send the update to a network
-        let _window = web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
-
-        let start = js_sys::Date::now();
-        while js_sys::Date::now() - start < 100.0 {
-            // Simulate processing
-            JsFuture::from(js_sys::Promise::new(&mut |resolve, _| {
-                resolve.call0(&JsValue::NULL).unwrap();
-            }))
-            .await?;
-        }
-
-        Ok(())
-    }
-    fn compute_cell_hash(transaction: &Transaction) -> Vec<u8> {
-        let mut hasher = Sha256::new();
-        hasher.update(&transaction.serialize());
-        hasher.finalize().to_vec()
-    }
-
-    pub fn get_state(&self) -> Result<JsValue, JsValue> {
-        Ok(to_value(&self.current_state)?)
-    }
-
-    pub fn get_pending_transactions(&self) -> Result<JsValue, JsValue> {
-        let serializable_transactions: Vec<SerializableTransaction> = self
-            .pending_transactions
-            .iter()
-            .map(|t| SerializableTransaction::from(t))
-            .collect();
-        Ok(to_value(&serializable_transactions)?)
-    }
-
-    pub fn finalize(&mut self) -> Result<JsValue, JsValue> {
-        self.current_state.is_finalized = true;
-        self.storage.save_state("channel-1", &self.current_state)?;
-        Ok(to_value(&self.current_state)?)
+}
+impl wasm_bindgen::describe::WasmDescribe for Channel {
+    fn describe() {
+        <JsValue as wasm_bindgen::describe::WasmDescribe>::describe()
     }
 }
 
-#[derive(Clone)]
-pub struct ClientStorage {
-    storage: Storage,
-}
-
-impl ClientStorage {
-    pub fn new() -> Result<Self, JsValue> {
-        let window: Window =
-            web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
-
-        let storage = window
-            .local_storage()?
-            .ok_or_else(|| JsValue::from_str("No local storage found"))?;
-
-        Ok(Self { storage })
-    }
-
-    pub fn save_state(&self, key: &str, state: &ChannelState) -> Result<(), JsValue> {
-        let serialized = serde_json::to_string(state)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))?;
-        self.storage.set_item(key, &serialized)?;
-        Ok(())
-    }
-
-    pub fn load_state(&self, key: &str) -> Result<Option<ChannelState>, JsValue> {
-        match self.storage.get_item(key)? {
-            Some(stored) => serde_json::from_str(&stored)
-                .map_err(|e| JsValue::from_str(&format!("Deserialization error: {}", e)))
-                .map(Some),
-            None => Ok(None),
-        }
+impl wasm_bindgen::convert::IntoWasmAbi for Channel {
+    type Abi = <JsValue as wasm_bindgen::convert::IntoWasmAbi>::Abi;
+    fn into_abi(self) -> Self::Abi {
+        serde_wasm_bindgen::to_value(&self).unwrap().into_abi()
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    #[allow(dead_code)]
-    fn test_channel_creation() {
-        let channel = Channel::new().unwrap();
-        let state = channel.get_state().unwrap();
-        let state: ChannelState = serde_wasm_bindgen::from_value(state).unwrap();
-        assert_eq!(state.nonce, 0);
-        assert_eq!(state.balance, 0);
+impl wasm_bindgen::convert::FromWasmAbi for Channel {
+    type Abi = <JsValue as wasm_bindgen::convert::FromWasmAbi>::Abi;
+    unsafe fn from_abi(js: Self::Abi) -> Self {
+        let js_value = JsValue::from_abi(js);
+        serde_wasm_bindgen::from_value(js_value).unwrap()
     }
+}
 
-    #[wasm_bindgen_test]
-    #[allow(dead_code)]
-    async fn test_transaction_processing() {
-        let mut channel = Channel::new().unwrap();
-        let amount = 100;
-        let data = vec![1, 2, 3];
+impl wasm_bindgen::convert::RefFromWasmAbi for Channel {
+    type Abi = <JsValue as wasm_bindgen::convert::RefFromWasmAbi>::Abi;
+    type Anchor = ManuallyDrop<Channel>;
 
-        let promise = channel.process_transaction(amount, data);
-        let result = JsFuture::from(promise).await.unwrap();
-
-        let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
-        assert_eq!(update.balance, amount);
-        assert_eq!(update.nonce, 1);
+    unsafe fn ref_from_abi(js: Self::Abi) -> Self::Anchor {
+        let js_value = JsValue::ref_from_abi(js);
+        let channel: Channel = serde_wasm_bindgen::from_value(js_value).unwrap();
+        ManuallyDrop::new(channel)
     }
+}
 
-    #[wasm_bindgen_test]
-    #[allow(dead_code)]
-    async fn test_multiple_transactions() {
-        let mut channel = Channel::new().unwrap();
+impl wasm_bindgen::convert::RefMutFromWasmAbi for Channel {
+    type Abi = <JsValue as wasm_bindgen::convert::RefMutFromWasmAbi>::Abi;
+    type Anchor = ManuallyDrop<Channel>;
 
-        for i in 1..=3 {
-            let promise = channel.process_transaction(100 * i as u64, vec![i as u8]);
-            let result = JsFuture::from(promise).await.unwrap();
-
-            let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
-            assert_eq!(update.nonce, i as u64);
-        }
+    unsafe fn ref_mut_from_abi(js: Self::Abi) -> Self::Anchor {
+        let js_value = JsValue::ref_from_abi(js);
+        let channel: Channel = serde_wasm_bindgen::from_value(js_value).unwrap();
+        ManuallyDrop::new(channel)
     }
 }
