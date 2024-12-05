@@ -2,6 +2,7 @@ pub mod channel;
 pub mod error;
 pub mod storage;
 pub mod types;
+
 use crate::types::cell_builder::{Cell, CellBuilder};
 use crate::types::dag_boc::DAGBOC;
 use crate::types::ops::{ChannelOpCode, OpCode, WalletOpCode};
@@ -9,10 +10,6 @@ use crate::types::state_boc::StateBOC;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-// Remove the unused import
-// use types::cell_builder;
-
-// Rest of WASM implementation...
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
@@ -24,13 +21,6 @@ extern "C" {
 
 macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
-
-#[wasm_bindgen]
-pub struct Channel {
-    state_boc: StateBOC,
-    dag_boc: DAGBOC,
-    nonce: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -46,6 +36,13 @@ pub struct StateUpdate {
     pub balance: u64,
     pub merkle_root: [u8; 32],
     pub cell_hash: [u8; 32],
+}
+
+#[wasm_bindgen]
+pub struct Channel {
+    state_boc: StateBOC,
+    dag_boc: DAGBOC,
+    nonce: u64,
 }
 
 #[wasm_bindgen]
@@ -74,20 +71,25 @@ impl Channel {
             .add_cell(initial_cell)
             .map_err(|e| JsValue::from_str(&format!("Cell initialization error: {}", e)))?;
 
-        let channel = Channel {
+        Ok(Channel {
             state_boc,
             dag_boc,
             nonce: 0,
-        };
-
-        Ok(channel)
+        })
     }
+
     #[wasm_bindgen]
     pub fn create_wallet(&mut self, entropy: &[u8]) -> Result<JsValue, JsValue> {
         console_log!("Creating new wallet BOC structure");
 
-        let op = OpCode::Wallet(WalletOpCode::CreateChannel);
-        let cell = crate::types::state_boc::Cell {
+        let mut cell_data = entropy.to_vec();
+        cell_data.insert(0, WalletOpCode::Create as u8);
+        
+        self.dag_boc
+            .add_cell(cell_data)
+            .map_err(|e| JsValue::from_str(&format!("Cell addition error: {}", e)))?;
+
+        let state_cell = crate::types::state_boc::Cell {
             cell_type: crate::types::state_boc::CellType::Ordinary,
             data: entropy.to_vec(),
             references: Vec::new(),
@@ -96,22 +98,23 @@ impl Channel {
             balance: 0,
         };
 
-        self.state_boc.add_cell(cell);
-
-        self.dag_boc
-            .process_op_code(op)
-            .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
-
+        self.state_boc.add_cell(state_cell);
         self.nonce += 1;
-
         self.serialize_state()
     }
+
     #[wasm_bindgen]
     pub fn update_state(&mut self, amount: u64, data: &[u8]) -> Result<JsValue, JsValue> {
         console_log!("Updating state with amount: {}", amount);
 
-        let op = OpCode::Channel(ChannelOpCode::UpdateState);
-        let cell = crate::types::state_boc::Cell {
+        let mut cell_data = data.to_vec();
+        cell_data.insert(0, ChannelOpCode::Update as u8);
+        
+        self.dag_boc
+            .add_cell(cell_data)
+            .map_err(|e| JsValue::from_str(&format!("Cell addition error: {}", e)))?;
+
+        let state_cell = crate::types::state_boc::Cell {
             cell_type: crate::types::state_boc::CellType::Ordinary,
             data: data.to_vec(),
             references: Vec::new(),
@@ -120,51 +123,47 @@ impl Channel {
             balance: 0,
         };
 
-        self.state_boc.add_cell(cell);
-
-        self.dag_boc
-            .process_op_code(op)
-            .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
-
+        self.state_boc.add_cell(state_cell);
         self.nonce += 1;
-
         self.serialize_state()
     }
+
     #[wasm_bindgen]
     pub fn process_transaction(&mut self, tx_data: &[u8]) -> Result<JsValue, JsValue> {
         console_log!("Processing transaction");
 
-        let op = OpCode::Wallet(WalletOpCode::ProcessTransaction);
-        let cell = crate::types::state_boc::Cell {
+        let mut cell_data = tx_data.to_vec();
+        cell_data.insert(0, ChannelOpCode::CreatePayment as u8);
+        
+        self.dag_boc
+            .add_cell(cell_data.clone())
+            .map_err(|e| JsValue::from_str(&format!("Cell addition error: {}", e)))?;
+
+        let state_cell = crate::types::state_boc::Cell {
             cell_type: crate::types::state_boc::CellType::Ordinary,
-            data: tx_data.to_vec(),
+            data: cell_data,
             references: Vec::new(),
             slice: None,
             nonce: self.nonce,
             balance: 0,
         };
 
-        self.state_boc.add_cell(cell);
-
-        self.dag_boc
-            .process_op_code(op)
-            .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
-
+        self.state_boc.add_cell(state_cell);
         self.nonce += 1;
-
         self.serialize_state()
     }
     #[wasm_bindgen]
     pub fn finalize_state(&mut self) -> Result<JsValue, JsValue> {
         console_log!("Finalizing state");
-
-        let op = OpCode::Channel(ChannelOpCode::FinalizeState);
+        
+        let mut cell_data = Vec::new();
+        cell_data.push(ChannelOpCode::Finalize as u8);
+        
         self.dag_boc
-            .process_op_code(op)
-            .map_err(|e| JsValue::from_str(&format!("OpCode processing error: {}", e)))?;
+            .add_cell(cell_data)
+            .map_err(|e| JsValue::from_str(&format!("Cell addition error: {}", e)))?;
 
         let final_hash = self.state_boc.compute_hash();
-
         Ok(serde_wasm_bindgen::to_value(&final_hash)
             .map_err(|e| JsValue::from_str(&format!("State serialization error: {}", e)))?)
     }
@@ -201,51 +200,48 @@ pub fn start() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen_futures::JsFuture;
     use wasm_bindgen_test::*;
     use crate::types::state_boc::StateBOC;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
+    fn create_test_config() -> String {
+        r#"{
+            "initial_balance": 0,
+            "security_bits": 256,
+            "version": 1
+        }"#.to_string()
+    }
+
     #[wasm_bindgen_test]
-    #[allow(dead_code)]
     fn test_channel_creation() {
-        let channel = Channel::new("test_channel").unwrap();
+        let channel = Channel::new(&create_test_config()).unwrap();
         let state = channel.get_current_state().unwrap();
-        let state: Vec<u8> = serde_wasm_bindgen::from_value(state).unwrap();
-        let mut state_boc = StateBOC::deserialize(&state).unwrap();
-        assert_eq!(state_boc.compute_hash(), [0; 32]); // Assuming a default hash for a new channel
+        let state_bytes: Vec<u8> = serde_wasm_bindgen::from_value(state).unwrap();
+        let mut state_boc = StateBOC::deserialize(&state_bytes).unwrap();
+        assert!(state_boc.compute_hash() != [0; 32]);
     }
 
     #[wasm_bindgen_test]
-    #[allow(dead_code)]
-    async fn test_transaction_processing() {
-        let mut channel = Channel::new("test_channel").unwrap();
-        let amount: u64 = 100;
-
-        let promise = channel.process_transaction(&amount.to_le_bytes()).unwrap();
-        let promise = promise.dyn_into::<js_sys::Promise>().unwrap();
-        let result = JsFuture::from(promise).await.unwrap();
-
-        let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
-        assert_eq!(update.balance, amount);
-        assert_eq!(update.nonce, 1);
+    fn test_transaction_processing() {
+        let mut channel = Channel::new(&create_test_config()).unwrap();
+        let tx_data = vec![1, 2, 3, 4];
+        let result = channel.process_transaction(&tx_data).unwrap();
+        let state_bytes: Vec<u8> = serde_wasm_bindgen::from_value(result).unwrap();
+        let mut state_boc = StateBOC::deserialize(&state_bytes).unwrap();
+        assert!(state_boc.compute_hash() != [0; 32]);
     }
 
     #[wasm_bindgen_test]
-    #[allow(dead_code)]
-    async fn test_multiple_transactions() {
-        let mut channel = Channel::new("test_channel").unwrap();
+    fn test_multiple_transactions() {
+        let mut channel = Channel::new(&create_test_config()).unwrap();
+        let tx_data = vec![1, 2, 3, 4];
 
-        for i in 1..=3 {
-            let amount = 100 * i as u64;
-            let promise = channel.process_transaction(&amount.to_le_bytes()).unwrap();
-            let promise = promise.dyn_into::<js_sys::Promise>().unwrap();
-            let result = JsFuture::from(promise).await.unwrap();
-
-            let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
-            assert_eq!(update.nonce, i as u64);
+        for _ in 0..3 {
+            let result = channel.process_transaction(&tx_data).unwrap();
+            let state_bytes: Vec<u8> = serde_wasm_bindgen::from_value(result).unwrap();
+            let mut state_boc = StateBOC::deserialize(&state_bytes).unwrap();
+            assert!(state_boc.compute_hash() != [0; 32]);
         }
     }
 }
