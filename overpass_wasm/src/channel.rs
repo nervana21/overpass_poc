@@ -1,13 +1,15 @@
 // overpass_wasm/src/channel.rs
 
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::to_value;
-use web_sys::{Storage, Window};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::{Storage, Window};
+
+
 
 // Error type for channel-specific errors
 #[derive(Debug, Clone)]
@@ -72,7 +74,7 @@ impl Transaction {
     pub fn new(amount: u64, data: Vec<u8>, nonce: u64) -> Self {
         let timestamp = js_sys::Date::now() as u64;
         // In production, this would use proper key signing
-        let signature = Vec::new(); 
+        let signature = Vec::new();
         Self {
             amount,
             data,
@@ -121,10 +123,8 @@ impl MerkleTree {
     }
 
     fn compute_root(&self, index: usize) -> Vec<u8> {
-        let mut current_hash = self.nodes.get(&index)
-            .expect("Node must exist")
-            .clone();
-        
+        let mut current_hash = self.nodes.get(&index).expect("Node must exist").clone();
+
         let mut current_index = index;
         for _ in 0..self.depth {
             let sibling_index = if current_index % 2 == 0 {
@@ -132,7 +132,7 @@ impl MerkleTree {
             } else {
                 current_index - 1
             };
-            
+
             if let Some(sibling) = self.nodes.get(&sibling_index) {
                 let mut hasher = Sha256::new();
                 if current_index % 2 == 0 {
@@ -144,16 +144,17 @@ impl MerkleTree {
                 }
                 current_hash = hasher.finalize().to_vec();
             }
-            
+
             current_index /= 2;
         }
-        
+
         current_hash
     }
 
+    #[allow(dead_code)]
     fn verify_proof(&self, proof: &[Vec<u8>], leaf_hash: &[u8], root: &[u8]) -> bool {
         let mut current_hash = leaf_hash.to_vec();
-        
+
         for (i, sibling) in proof.iter().enumerate() {
             let mut hasher = Sha256::new();
             if i % 2 == 0 {
@@ -165,7 +166,7 @@ impl MerkleTree {
             }
             current_hash = hasher.finalize().to_vec();
         }
-        
+
         &current_hash == root
     }}
 
@@ -186,7 +187,7 @@ struct SerializableTransaction {
     recipient: String,
     timestamp: u64,
     signature: Vec<u8>,
-    nonce: u64
+    nonce: u64,
 }
 
 impl From<&Transaction> for SerializableTransaction {
@@ -212,7 +213,7 @@ impl Channel {
             Some(state) => state,
             None => ChannelState::default(),
         };
-        
+
         Ok(Self {
             storage,
             current_state,
@@ -239,11 +240,7 @@ impl Channel {
             }
 
             // Create and validate transaction
-            let transaction = Transaction::new(
-                amount,
-                data,
-                current_state.nonce + 1,
-            );
+            let transaction = Transaction::new(amount, data, current_state.nonce + 1);
 
             // Generate and verify proof
             let proof = Channel::generate_proof(&transaction)?;
@@ -301,22 +298,20 @@ impl Channel {
 
     async fn broadcast_update(_update: &StateUpdate) -> Result<(), JsValue> {
         // In production, this would send the update to a network
-        let window = web_sys::window()
-            .ok_or_else(|| JsValue::from_str("No window found"))?;
-        
-        let performance = window
-            .performance()
+        let window = web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
+
+        let performance = window    
+            .performance()    
             .ok_or_else(|| JsValue::from_str("Performance API not available"))?;
-        
-        // Simulate network latency
         let start = performance.now();
         while performance.now() - start < 100.0 {
             // Simulate processing
             JsFuture::from(js_sys::Promise::new(&mut |resolve, _| {
                 resolve.call0(&JsValue::NULL).unwrap();
-            })).await?;
+            }))
+            .await?;
         }
-        
+
         Ok(())
     }
 
@@ -331,7 +326,8 @@ impl Channel {
     }
 
     pub fn get_pending_transactions(&self) -> Result<JsValue, JsValue> {
-        let serializable_transactions: Vec<SerializableTransaction> = self.pending_transactions
+        let serializable_transactions: Vec<SerializableTransaction> = self
+            .pending_transactions
             .iter()
             .map(|t| SerializableTransaction::from(t))
             .collect();
@@ -352,13 +348,13 @@ pub struct ClientStorage {
 
 impl ClientStorage {
     pub fn new() -> Result<Self, JsValue> {
-        let window: Window = web_sys::window()
-            .ok_or_else(|| JsValue::from_str("No window found"))?;
-            
+        let window: Window =
+            web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
+
         let storage = window
             .local_storage()?
             .ok_or_else(|| JsValue::from_str("No local storage found"))?;
-        
+
         Ok(Self { storage })
     }
 
@@ -371,16 +367,13 @@ impl ClientStorage {
 
     pub fn load_state(&self, key: &str) -> Result<Option<ChannelState>, JsValue> {
         match self.storage.get_item(key)? {
-            Some(stored) => {
-                serde_json::from_str(&stored)
-                    .map_err(|e| JsValue::from_str(&format!("Deserialization error: {}", e)))
-                    .map(Some)
-            }
-            None => Ok(None)
+            Some(stored) => serde_json::from_str(&stored)
+                .map_err(|e| JsValue::from_str(&format!("Deserialization error: {}", e)))
+                .map(Some),
+            None => Ok(None),
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -389,6 +382,7 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
+    #[allow(dead_code)]
     fn test_channel_creation() {
         let channel = Channel::new().unwrap();
         let state = channel.get_state().unwrap();
@@ -398,27 +392,29 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    #[allow(dead_code)]
     async fn test_transaction_processing() {
         let mut channel = Channel::new().unwrap();
         let amount = 100;
         let data = vec![1, 2, 3];
-        
+
         let promise = channel.process_transaction(amount, data);
         let result = JsFuture::from(promise).await.unwrap();
-        
+
         let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
         assert_eq!(update.balance, amount);
         assert_eq!(update.nonce, 1);
     }
 
     #[wasm_bindgen_test]
+    #[allow(dead_code)]
     async fn test_multiple_transactions() {
         let mut channel = Channel::new().unwrap();
-        
+
         for i in 1..=3 {
             let promise = channel.process_transaction(100 * i as u64, vec![i as u8]);
             let result = JsFuture::from(promise).await.unwrap();
-            
+
             let update: StateUpdate = serde_wasm_bindgen::from_value(result).unwrap();
             assert_eq!(update.nonce, i as u64);
         }
