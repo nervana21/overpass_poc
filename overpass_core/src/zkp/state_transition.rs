@@ -1,14 +1,13 @@
 use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::config::PoseidonGoldilocksConfig,
-    plonk::{
-        circuit_builder::CircuitBuilder,
-        circuit_data::{CircuitConfig, CircuitData},
-        proof::ProofWithPublicInputs,
-    },
-    iop::{witness::PartialWitness, target::Target},
+    field::goldilocks_field::GoldilocksField, hash::{
+        hash_types::{HashOut, HashOutTarget},
+        poseidon::PoseidonHash,
+    }, iop::witness::{PartialWitness, WitnessWrite}, plonk::{
+        circuit_builder::CircuitBuilder, circuit_data::{CircuitConfig, CircuitData}, config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs
+    }
 };
 use anyhow::Result;
+use plonky2_field::types::Field;
 
 type C = PoseidonGoldilocksConfig;
 
@@ -30,11 +29,14 @@ impl StateTransitionCircuit {
         builder.register_public_inputs(&next_state.elements);
 
         // Witness for transition data
-        let transition_data = builder.add_virtual_hash();
+        let transition_data_target = builder.add_virtual_hash();
 
-        // Compute next state hash using Poseidon
-        let computed_next_state = builder.hash_n_to_m_no_pad::<PoseidonGoldilocksConfig>(
-            &[current_state.elements[0], transition_data.elements[0]],
+        // Compute next state hash
+        let computed_next_state = builder.hash_n_to_m_no_pad::<PoseidonHash>(
+            vec![
+                current_state.elements[0],
+                transition_data_target.elements[0],
+            ],
             1,
         )[0];
 
@@ -55,35 +57,32 @@ impl StateTransitionCircuit {
     ) -> Result<ProofWithPublicInputs<GoldilocksField, C, 2>> {
         let mut pw = PartialWitness::<GoldilocksField>::new();
 
-        // Set public inputs for current and next states
-        for i in 0..4 {
-            let chunk = |state: &[u8; 32], index| {
-                GoldilocksField::from_canonical_u64(u64::from_be_bytes(
-                    state[index * 8..(index + 1) * 8].try_into().unwrap(),
-                ))
-            };
+        // Convert inputs to GoldilocksField and set public inputs
+        let current_state_hash = HashOut::<GoldilocksField>::from_vec(current_state.iter().map(|&x| GoldilocksField::from_canonical_u8(x)).collect());
+        let next_state_hash = HashOut::<GoldilocksField>::from_vec(next_state.iter().map(|&x| GoldilocksField::from_canonical_u8(x)).collect());
+        let transition_data_hash = HashOut::<GoldilocksField>::from_vec(transition_data.iter().map(|&x| GoldilocksField::from_canonical_u8(x)).collect());
 
-            let current_chunk = chunk(&current_state, i);
-            let next_chunk = chunk(&next_state, i);
-
-            pw.set_target(self.circuit_data.prover_only.public_inputs[i], current_chunk);
-            pw.set_target(self.circuit_data.prover_only.public_inputs[i + 4], next_chunk);
-        }
-
-        // Set witness for transition data
-        for i in 0..4 {
-            let chunk = GoldilocksField::from_canonical_u64(u64::from_be_bytes(
-                transition_data[i * 8..(i + 1) * 8].try_into().unwrap(),
-            ));
-            pw.set_target(self.circuit_data.prover_only.wire_inputs[i + 8], chunk);
-        }
-
+        let _ = pw.set_hash_target(
+            HashOutTarget::from_vec(vec![self.circuit_data.prover_only.public_inputs[0].clone()]),
+            current_state_hash,
+        );
+        let _ = pw.set_hash_target(
+            HashOutTarget::from_vec(vec![self.circuit_data.prover_only.public_inputs[1].clone()]),
+            next_state_hash,
+        );
+        let _ = pw.set_hash_target(
+            HashOutTarget::from_vec(vec![self.circuit_data.prover_only.public_inputs[2].clone()]),
+            transition_data_hash,
+        );
         let proof = self.circuit_data.prove(pw)?;
         Ok(proof)
     }
 
     /// Verify a proof for a state transition.
-    pub fn verify_proof(&self, proof: ProofWithPublicInputs<GoldilocksField, C, 2>) -> Result<bool> {
+    pub fn verify_proof(
+        &self,
+        proof: ProofWithPublicInputs<GoldilocksField, C, 2>,
+    ) -> Result<bool> {
         self.circuit_data.verify(proof)?;
         Ok(true)
     }
