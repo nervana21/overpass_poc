@@ -1,15 +1,13 @@
-use plonky2::plonk::proof::ProofWithPublicInputs;
-use plonky2::iop::witness::WitnessWrite;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::config::PoseidonGoldilocksConfig,
-    iop::witness::PartialWitness,
     plonk::{
         circuit_builder::CircuitBuilder,
         circuit_data::{CircuitConfig, CircuitData},
+        proof::ProofWithPublicInputs,
     },
+    iop::{witness::PartialWitness, target::Target},
 };
-use plonky2_field::types::Field;
 use anyhow::Result;
 
 type C = PoseidonGoldilocksConfig;
@@ -34,18 +32,20 @@ impl StateTransitionCircuit {
         // Witness for transition data
         let transition_data = builder.add_virtual_hash();
 
-        // Compute next state hash
-        let computed_next_state = builder.add_virtual_hash();
-        builder.connect_hashes(computed_next_state, current_state);
-        builder.connect_hashes(computed_next_state, transition_data);   
-        
-        // Enforce consistency
-        builder.connect_hashes(computed_next_state, next_state);
+        // Compute next state hash using Poseidon
+        let computed_next_state = builder.hash_n_to_m_no_pad::<PoseidonGoldilocksConfig>(
+            &[current_state.elements[0], transition_data.elements[0]],
+            1,
+        )[0];
+
+        // Enforce computed_next_state consistency
+        builder.connect(computed_next_state, next_state.elements[0]);
 
         let circuit_data = builder.build::<C>();
 
         Self { circuit_data }
     }
+
     /// Generate a proof for a state transition.
     pub fn generate_proof(
         &self,
@@ -55,17 +55,28 @@ impl StateTransitionCircuit {
     ) -> Result<ProofWithPublicInputs<GoldilocksField, C, 2>> {
         let mut pw = PartialWitness::<GoldilocksField>::new();
 
-        // Set public inputs and witness values
+        // Set public inputs for current and next states
         for i in 0..4 {
-            let current_state_target = self.circuit_data.prover_only.public_inputs[i];
-            let next_state_target = self.circuit_data.prover_only.public_inputs[i + 4];
-            pw.set_target(current_state_target, GoldilocksField::from_canonical_u64(u64::from_be_bytes(current_state[i*8..(i+1)*8].try_into().unwrap())));
-            pw.set_target(next_state_target, GoldilocksField::from_canonical_u64(u64::from_be_bytes(next_state[i*8..(i+1)*8].try_into().unwrap())));
+            let chunk = |state: &[u8; 32], index| {
+                GoldilocksField::from_canonical_u64(u64::from_be_bytes(
+                    state[index * 8..(index + 1) * 8].try_into().unwrap(),
+                ))
+            };
+
+            let current_chunk = chunk(&current_state, i);
+            let next_chunk = chunk(&next_state, i);
+
+            pw.set_target(self.circuit_data.prover_only.public_inputs[i], current_chunk);
+            pw.set_target(self.circuit_data.prover_only.public_inputs[i + 4], next_chunk);
         }
 
-        // Set transition data
-        let transition_target = self.circuit_data.prover_only.public_inputs[8];
-        pw.set_target(transition_target, GoldilocksField::from_canonical_u64(u64::from_be_bytes(transition_data[..8].try_into().unwrap())));
+        // Set witness for transition data
+        for i in 0..4 {
+            let chunk = GoldilocksField::from_canonical_u64(u64::from_be_bytes(
+                transition_data[i * 8..(i + 1) * 8].try_into().unwrap(),
+            ));
+            pw.set_target(self.circuit_data.prover_only.wire_inputs[i + 8], chunk);
+        }
 
         let proof = self.circuit_data.prove(pw)?;
         Ok(proof)
