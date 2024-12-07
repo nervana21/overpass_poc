@@ -1,12 +1,11 @@
 // File: overpass_core/tests/zkp_state_transition_test.rs
 
-use overpass_core::zkp::state_transition::{StateTransitionCircuit, StateTransitionConfig};
+use overpass_core::zkp::state_transition::StateTransitionCircuit;
 use rand::Rng;
 
 #[test]
 fn test_state_transition_proof() {
-    let circuit_config = StateTransitionConfig::default();
-    let circuit = StateTransitionCircuit::new(circuit_config);
+    let circuit = StateTransitionCircuit::new();
 
     let current_state: [u8; 32] = [1; 32];
     let next_state: [u8; 32] = [2; 32];
