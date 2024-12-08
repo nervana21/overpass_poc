@@ -6,19 +6,19 @@ use plonky2::plonk::config::Hasher;
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct SparseMerkleProof {
+pub struct SparseMerkleProofWallet {
     pub path: Vec<Vec<u8>>,
     pub value: Vec<u8>,
 }
 
 #[derive(Debug)]
-pub struct SparseMerkleTree {
+pub struct SparseMerkleTreeWallet {
     pub root: [u8; 32],
     nodes: HashMap<Vec<u8>, Vec<u8>>,
     height: usize,
 }
 
-impl SparseMerkleTree {
+impl SparseMerkleTreeWallet {
     pub fn new(height: usize) -> Self {
         let empty_root = [0u8; 32];
         Self {

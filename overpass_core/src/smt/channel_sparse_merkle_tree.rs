@@ -15,7 +15,7 @@ use thiserror::Error;
 
 
 #[derive(Error, Debug)]
-pub enum MerkleTreeError {
+pub enum MerkleTreeErrorChannel {
     #[error("Invalid key length")]
     InvalidKeyLength,
     #[error("Invalid value length")]
@@ -33,13 +33,13 @@ pub enum MerkleTreeError {
 }
 
 #[derive(Debug, Clone)]
-pub struct SparseMerkleProof {
+pub struct SparseMerkleProofChannel {
     pub siblings: Vec<HashOut<GoldilocksField>>,
     pub value: Vec<u8>,
     pub key_fragments: Vec<bool>,
 }
 
-pub struct SparseMerkleTree {
+pub struct SparseMerkleTreeChannel {
     pub root: HashOut<GoldilocksField>,
     nodes: HashMap<Vec<bool>, HashOut<GoldilocksField>>,
     node_cache: LruCache<Vec<bool>, HashOut<GoldilocksField>>,
@@ -47,7 +47,7 @@ pub struct SparseMerkleTree {
     max_cache_size: usize,
 }
 
-impl SparseMerkleTree {
+impl SparseMerkleTreeChannel {
     pub fn new(height: usize) -> Self {
         Self {
             root: HashOut::ZERO,
@@ -58,13 +58,13 @@ impl SparseMerkleTree {
         }
     }
 
-    pub fn update(&mut self, key: &[u8], value: &[u8]) -> Result<(), MerkleTreeError> {
+    pub fn update(&mut self, key: &[u8], value: &[u8]) -> Result<(), MerkleTreeErrorChannel> {
         let key_fragments = self.get_key_fragments(key)?;
         
         // Check for existing value to prevent key collisions
         if let Some(existing_value) = self.get_value(key)? {
             if existing_value != value {
-                return Err(MerkleTreeError::KeyCollision);
+                return Err(MerkleTreeErrorChannel::KeyCollision);
             }
         }
         
@@ -89,10 +89,10 @@ impl SparseMerkleTree {
         Ok(())
     }
 
-    pub fn generate_proof(&self, key: &[u8]) -> Result<SparseMerkleProof, MerkleTreeError> {
+    pub fn generate_proof(&self, key: &[u8]) -> Result<SparseMerkleProofChannel, MerkleTreeErrorChannel> {  
         let key_fragments = self.get_key_fragments(key)?;
         if key_fragments.len() != self.height {
-            return Err(MerkleTreeError::InvalidKeyLength);
+            return Err(MerkleTreeErrorChannel::InvalidKeyLength);
         }
 
         let mut siblings = Vec::with_capacity(self.height);
@@ -105,20 +105,20 @@ impl SparseMerkleTree {
             siblings.push(sibling);
         }
 
-        Ok(SparseMerkleProof {
+        Ok(SparseMerkleProofChannel {
             siblings,
             value: self.get_value(key)?.unwrap_or_default(),
             key_fragments,
         })
     }
 
-    pub fn verify_proof(&self, proof: &SparseMerkleProof) -> Result<bool, MerkleTreeError> {
+    pub fn verify_proof(&self, proof: &SparseMerkleProofChannel) -> Result<bool, MerkleTreeErrorChannel> {
         if proof.siblings.len() != self.height {
-            return Err(MerkleTreeError::InvalidProofLength);
+            return Err(MerkleTreeErrorChannel::InvalidProofLength);
         }
 
         if proof.key_fragments.len() != self.height {
-            return Err(MerkleTreeError::InvalidKeyLength);
+            return Err(MerkleTreeErrorChannel::InvalidKeyLength);
         }
 
         let mut current_hash = self.value_to_field(&proof.value)?;
@@ -134,10 +134,10 @@ impl SparseMerkleTree {
         Ok(current_hash == self.root)
     }
 
-    fn get_key_fragments(&self, key: &[u8]) -> Result<Vec<bool>, MerkleTreeError> {
+    fn get_key_fragments(&self, key: &[u8]) -> Result<Vec<bool>, MerkleTreeErrorChannel> {
         let required_bytes = (self.height + 7) / 8;
         if key.len() < required_bytes {
-            return Err(MerkleTreeError::InvalidKeyLength);
+            return Err(MerkleTreeErrorChannel::InvalidKeyLength);
         }
 
         let mut fragments = Vec::with_capacity(self.height);
@@ -161,7 +161,7 @@ impl SparseMerkleTree {
             .or_else(|| self.nodes.get(path).copied())
     }
 
-    fn update_cache(&mut self, path: &Vec<bool>, hash: HashOut<GoldilocksField>) -> Result<(), MerkleTreeError> {
+    fn update_cache(&mut self, path: &Vec<bool>, hash: HashOut<GoldilocksField>) -> Result<(), MerkleTreeErrorChannel> {
         if self.node_cache.len() >= self.max_cache_size {
             self.node_cache.pop_lru();
         }
@@ -173,7 +173,7 @@ impl SparseMerkleTree {
         self.get_cached_node(path)
     }
 
-    fn get_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, MerkleTreeError> {
+    fn get_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, MerkleTreeErrorChannel> {
         let key_fragments = self.get_key_fragments(key)?;
         Ok(self.nodes.get(&key_fragments)
             .map(|hash| field_to_bytes(hash)))
@@ -183,7 +183,7 @@ impl SparseMerkleTree {
         &self,
         left: HashOut<GoldilocksField>,
         right: HashOut<GoldilocksField>,
-    ) -> Result<HashOut<GoldilocksField>, MerkleTreeError> {
+    ) -> Result<HashOut<GoldilocksField>, MerkleTreeErrorChannel> {
         let input = [
             left.elements.to_vec(),
             right.elements.to_vec(),
@@ -192,9 +192,9 @@ impl SparseMerkleTree {
         Ok(PoseidonHash::hash_no_pad(&input))
     }
 
-    fn value_to_field(&self, value: &[u8]) -> Result<HashOut<GoldilocksField>, MerkleTreeError> {
+    fn value_to_field(&self, value: &[u8]) -> Result<HashOut<GoldilocksField>, MerkleTreeErrorChannel> {
         if value.len() > 32 {
-            return Err(MerkleTreeError::InvalidValueLength);
+            return Err(MerkleTreeErrorChannel::InvalidValueLength);
         }
 
         let mut field_elements = Vec::new();
@@ -209,7 +209,7 @@ impl SparseMerkleTree {
         }
 
         Ok(HashOut {
-            elements: field_elements.try_into().map_err(|_| MerkleTreeError::InvalidNodeState)?
+            elements: field_elements.try_into().map_err(|_| MerkleTreeErrorChannel::InvalidNodeState)?
         })
     }
 }
@@ -226,8 +226,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_basic_proof() -> Result<(), MerkleTreeError> {
-        let mut tree = SparseMerkleTree::new(32);
+    fn test_basic_proof() -> Result<(), MerkleTreeErrorChannel> {
+        let mut tree = SparseMerkleTreeChannel::new(32);
         let key = [1u8; 32];
         let value = [42u8; 32];
 
@@ -239,8 +239,8 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_updates() -> Result<(), MerkleTreeError> {
-        let mut tree = SparseMerkleTree::new(32);
+    fn test_multiple_updates() -> Result<(), MerkleTreeErrorChannel> {
+        let mut tree = SparseMerkleTreeChannel::new(32);
         
         for i in 0..4 {
             let key = [i as u8; 32];
@@ -258,8 +258,8 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_proof() -> Result<(), MerkleTreeError> {
-        let mut tree = SparseMerkleTree::new(32);
+    fn test_invalid_proof() -> Result<(), MerkleTreeErrorChannel> {
+        let mut tree = SparseMerkleTreeChannel::new(32);
         let key = [1u8; 32];
         let value = [42u8; 32];
         let wrong_key = [2u8; 32];
@@ -272,8 +272,8 @@ mod tests {
     }
 
     #[test]
-    fn test_key_collision() -> Result<(), MerkleTreeError> {
-        let mut tree = SparseMerkleTree::new(32);
+    fn test_key_collision() -> Result<(), MerkleTreeErrorChannel> {
+        let mut tree = SparseMerkleTreeChannel::new(32);
         let key = [1u8; 32];
         let value1 = [42u8; 32];
         let value2 = [43u8; 32];

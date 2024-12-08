@@ -1,4 +1,4 @@
-use crate::smt::wallet_sparse_merkle_tree::SparseMerkleTree;
+use crate::smt::wallet_sparse_merkle_tree::SparseMerkleTreeWallet;
 use serde::{Serialize, Deserialize};
 
 
@@ -24,7 +24,7 @@ impl Default for WalletState {
 
 impl WalletState {
     pub fn new(initial_balance: u64) -> Self {
-        let mut tree = SparseMerkleTree::new(32);
+        let mut tree = SparseMerkleTreeWallet::new(32);
         let key = [0u8; 32];
         let value = initial_balance.to_le_bytes();
         tree.update(&key, &value);
@@ -44,7 +44,7 @@ impl WalletState {
 
         let new_balance = self.balance - amount;
 
-        let mut tree = SparseMerkleTree::new(32);
+        let mut tree = SparseMerkleTreeWallet::new(32);
         let key = [0u8; 32];
         let value = new_balance.to_le_bytes();
         tree.update(&key, &value);
@@ -73,7 +73,7 @@ impl WalletState {
         if let Some(proof) = &next_state.proof {
             let key = [0u8; 32];
             let value = next_state.balance.to_le_bytes();
-            SparseMerkleTree::verify_proof(&self.merkle_root, proof, &key, &value)
+        SparseMerkleTreeWallet::verify_proof(&self.merkle_root, proof, &key, &value)
         } else {
             false
         }
@@ -97,7 +97,7 @@ impl WalletState {
 
     pub fn deposit(&self, amount: u64) -> Self {
         let new_balance = self.balance + amount;
-        let mut tree = SparseMerkleTree::new(32);
+    let mut tree = SparseMerkleTreeWallet::new(32);
         let key = [0u8; 32];
         let value = new_balance.to_le_bytes();
         tree.update(&key, &value);
@@ -111,7 +111,7 @@ impl WalletState {
     }
 
     pub fn update_merkle_proof(&mut self) {
-        let mut tree = SparseMerkleTree::new(32);
+    let mut tree = SparseMerkleTreeWallet::new(32);
         let key = [0u8; 32];
         let value = self.balance.to_le_bytes();
         tree.update(&key, &value);
@@ -124,7 +124,7 @@ impl WalletState {
             return Err("Nonce mismatch".to_string());
         }
 
-        let mut tree = SparseMerkleTree::new(32);
+    let mut tree = SparseMerkleTreeWallet::new(32);
         let key = [0u8; 32];
         let value = (self.balance + other.balance).to_le_bytes();
         tree.update(&key, &value);

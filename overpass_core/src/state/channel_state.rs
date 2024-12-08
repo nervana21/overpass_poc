@@ -4,7 +4,7 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
 };
 use thiserror::Error;
-use crate::smt::channel_sparse_merkle_tree::{SparseMerkleTree, MerkleTreeError};
+use crate::smt::channel_sparse_merkle_tree::{SparseMerkleTreeChannel, MerkleTreeErrorChannel};
 
 #[derive(Error, Debug)]
 pub enum ChannelStateError {
@@ -13,7 +13,7 @@ pub enum ChannelStateError {
     #[error("Insufficient balance")]
     InsufficientBalance,
     #[error("Merkle tree error: {0}")]
-    MerkleTreeError(#[from] MerkleTreeError),
+    MerkleTreeError(#[from] MerkleTreeErrorChannel),
     #[error("Invalid state transition")]
     InvalidStateTransition,
 }
@@ -107,7 +107,7 @@ impl Default for ChannelState {
 impl ChannelState {
     /// Creates a new channel state with initial balances
     pub fn new(initial_balances: [u64; 2]) -> Result<Self, ChannelStateError> {
-        let mut tree = SparseMerkleTree::new(32);
+        let mut tree = SparseMerkleTreeChannel::new(32);
         
         // Initialize tree with balances
         for (i, &balance) in initial_balances.iter().enumerate() {
@@ -146,7 +146,7 @@ impl ChannelState {
             .ok_or(ChannelStateError::InvalidStateTransition)?;
 
         // Update Merkle tree
-        let mut tree = SparseMerkleTree::new(32);
+        let mut tree = SparseMerkleTreeChannel::new(32);
         for (i, &balance) in new_balances.iter().enumerate() {
             let key = [i as u8; 32];
             let value = balance.to_le_bytes();
@@ -184,8 +184,8 @@ impl ChannelState {
 
         // Verify Merkle proof
         if let Some(proof) = &next_state.proof {
-            let tree = SparseMerkleTree::new(32);
-            let smt_proof = crate::smt::channel_sparse_merkle_tree::SparseMerkleProof {
+            let tree = SparseMerkleTreeChannel::new(32);
+            let smt_proof = crate::smt::channel_sparse_merkle_tree::SparseMerkleProofChannel {
                 siblings: proof.siblings.iter().map(|h| h.clone().into()).collect(),
                 value: proof.value.clone(),
                 key_fragments: proof.key_fragments.clone(),

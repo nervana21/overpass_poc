@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
-pub enum MerkleTreeError {
+pub enum MerkleTreeErrorGlobal {
     #[error("Invalid proof")]
     InvalidProof,
     #[error("Invalid key: {0}")]
@@ -21,14 +21,14 @@ pub enum MerkleTreeError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SparseMerkleProof {
+pub struct SparseMerkleProoGlobal {
     pub path: Vec<Vec<u8>>,
     pub value: Vec<u8>,
     pub siblings: Vec<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SparseMerkleTree {
+pub struct SparseMerkleTreeGlobal {
     pub root: [u8; 32],
     nodes: HashMap<Vec<u8>, Vec<u8>>,
     #[serde(skip)]
@@ -36,13 +36,13 @@ pub struct SparseMerkleTree {
     height: usize,
 }
 
-impl Default for SparseMerkleTree {
+impl Default for SparseMerkleTreeGlobal {
     fn default() -> Self {
         Self::new(0)
     }
 }
 
-impl SparseMerkleTree {
+impl SparseMerkleTreeGlobal {
     pub fn new(height: usize) -> Self {
         let empty_root = [0u8; 32];
         Self {
@@ -53,9 +53,9 @@ impl SparseMerkleTree {
         }
     }
 
-    pub fn update(&mut self, key: &[u8], value: &[u8]) -> Result<(), MerkleTreeError> {
+    pub fn update(&mut self, key: &[u8], value: &[u8]) -> Result<(), MerkleTreeErrorGlobal> {
         if key.is_empty() || value.is_empty() {
-            return Err(MerkleTreeError::InvalidKey("Key or value cannot be empty".to_string()));
+            return Err(MerkleTreeErrorGlobal::InvalidKey("Key or value cannot be empty".to_string()));
         }
 
         let mut current_hash = value.to_vec();
@@ -82,9 +82,9 @@ impl SparseMerkleTree {
         Ok(())
     }
 
-    pub fn generate_proof(&self, key: &[u8]) -> Result<SparseMerkleProof, MerkleTreeError> {
+    pub fn generate_proof(&self, key: &[u8]) -> Result<SparseMerkleProoGlobal, MerkleTreeErrorGlobal> {
         if key.is_empty() {
-            return Err(MerkleTreeError::InvalidKey("Key cannot be empty".to_string()));
+            return Err(MerkleTreeErrorGlobal::InvalidKey("Key cannot be empty".to_string()));
         }
 
         let mut path = Vec::new();
@@ -104,16 +104,16 @@ impl SparseMerkleTree {
             siblings.push(sibling);
         }
 
-        Ok(SparseMerkleProof {
+        Ok(SparseMerkleProoGlobal {
             path,
             value,
             siblings,
         })
     }
 
-    pub fn verify_proof(root: &[u8; 32], proof: &SparseMerkleProof, key: &[u8]) -> Result<bool, MerkleTreeError> {
+    pub fn verify_proof(root: &[u8; 32], proof: &SparseMerkleProoGlobal, key: &[u8]) -> Result<bool, MerkleTreeErrorGlobal> {
         if key.is_empty() || proof.path.is_empty() {
-            return Err(MerkleTreeError::InvalidProof);
+            return Err(MerkleTreeErrorGlobal::InvalidProof);
         }
 
         let mut current_hash = proof.value.clone();
@@ -121,7 +121,7 @@ impl SparseMerkleTree {
 
         for (i, sibling) in proof.path.iter().enumerate().rev() {
             if sibling.len() != 32 {
-                return Err(MerkleTreeError::InvalidProof);
+                return Err(MerkleTreeErrorGlobal::InvalidProof);
             }
 
             let pair = if key_bits[i] {
@@ -137,12 +137,12 @@ impl SparseMerkleTree {
         Ok(current_hash == root.to_vec())
     }
 
-    fn get_value(&self, key: &[u8]) -> Result<Vec<u8>, MerkleTreeError> {
+    fn get_value(&self, key: &[u8]) -> Result<Vec<u8>, MerkleTreeErrorGlobal> {
         let path_key = self.path_key(key, 0);
         self.nodes
             .get(&path_key)
             .cloned()
-            .ok_or_else(|| MerkleTreeError::InvalidKey(format!("Key not found: {:?}", key)))
+            .ok_or_else(|| MerkleTreeErrorGlobal::InvalidKey(format!("Key not found: {:?}", key)))
     }
 
     fn get_bits(&self, key: &[u8]) -> Vec<bool> {
