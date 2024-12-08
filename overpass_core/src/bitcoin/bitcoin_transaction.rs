@@ -149,8 +149,8 @@ impl BitcoinClient {
     pub fn default() -> Result<Self, BitcoinClientError> {
         Self::new(
             "http://127.0.0.1:18443",
-            "rpcuser",
-            "rpcpassword"
+            "bitcoinrpc",
+            "testpassword"
         )
     }
 }
@@ -174,7 +174,7 @@ mod tests {
 
         let block_count = client.get_block_count().expect("Failed to get block count");
         println!("Current block count: {}", block_count);
-        assert!(block_count >= 0);
+        assert!(block_count > 0);
 
         // Generate some blocks to ensure we have funds and see if RPC works:
         let address = client.get_new_address().expect("Failed to get new address");
@@ -187,5 +187,4 @@ mod tests {
         let balance = client.get_balance().expect("Failed to get balance");
         println!("Current balance: {} sats", balance);
         assert!(balance > 0);
-    }
-}
+    }}
