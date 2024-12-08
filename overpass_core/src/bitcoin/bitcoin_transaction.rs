@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
+use bitcoin::hashes::Hash;
 
 /// A conceptual Bitcoin transaction struct.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +44,14 @@ pub struct BitcoinClient {
     state_cache: Arc<RwLock<HashMap<[u8; 32], Vec<u8>>>>,
     rpc_client: Arc<Client>,
 }
+
+#[derive(Debug, Clone)]
+pub struct HTLCParams {
+    pub preimage: [u8; 32],
+    pub hash: [u8; 32],
+    pub timelock: u64,
+}
+
 impl BitcoinClient {
     /// Creates a new Bitcoin client connected to a local regtest node.
     pub fn new(rpc_url: &str, rpc_user: &str, rpc_pass: &str) -> Result<Self, BitcoinClientError> {
@@ -111,7 +120,41 @@ impl BitcoinClient {
         let cache = self.state_cache.read().unwrap();
         cache.get(txid).cloned()
     }
+
+    /// Creates HTLC parameters for a transaction
+    pub fn create_htlc_parameters(&self) -> Result<HTLCParams, BitcoinClientError> {
+        // Generate a random 32-byte secret preimage
+        let mut preimage = [0u8; 32];
+        getrandom::getrandom(&mut preimage)
+            .map_err(|e| BitcoinClientError::SerializationError(e.to_string()))?;
+        
+        // Create SHA256 hash of the preimage
+        let hash = bitcoin::hashes::sha256::Hash::hash(&preimage);
+        
+        // Generate a locktime (e.g., 24 hours from now)
+        let current_height = self.get_block_count()?;
+        let timelock = current_height + 144; // roughly 24 hours worth of blocks
+        
+        // Create HTLC parameters
+        let params = HTLCParams {
+            preimage,
+            hash: hash.to_byte_array(),
+            timelock,
+        };
+        
+        Ok(params)
+    }
+
+    /// Creates a new Bitcoin client with default regtest configuration
+    pub fn default() -> Result<Self, BitcoinClientError> {
+        Self::new(
+            "http://127.0.0.1:18443",
+            "rpcuser",
+            "rpcpassword"
+        )
+    }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
