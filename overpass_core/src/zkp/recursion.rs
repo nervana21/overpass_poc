@@ -17,6 +17,7 @@ type C = PoseidonGoldilocksConfig;
 pub struct StateTransitionCircuitWithRecursion {
     recursive_proofs: Vec<ProofWithPublicInputs<GoldilocksField, C, 2>>,
     max_recursive_depth: usize,
+    circuit: StateTransitionCircuit,
 }
 
 impl StateTransitionCircuitWithRecursion {
@@ -25,6 +26,7 @@ impl StateTransitionCircuitWithRecursion {
         Self {
             recursive_proofs: Vec::new(),
             max_recursive_depth: 32,
+            circuit: StateTransitionCircuit::new(),
         }
     }
 
@@ -33,6 +35,7 @@ impl StateTransitionCircuitWithRecursion {
     /// # Arguments
     ///
     /// * `current_state` - A 32-byte array representing the current state.
+    /// * `next_state` - A 32-byte array representing the next state.
     /// * `transition_data` - A 32-byte array representing the transition data.
     ///
     /// # Returns
@@ -41,6 +44,7 @@ impl StateTransitionCircuitWithRecursion {
     pub fn generate_proof(
         &mut self,
         current_state: [u8; 32],
+        next_state: [u8; 32],
         transition_data: [u8; 32],
     ) -> Result<ProofWithPublicInputs<GoldilocksField, C, 2>> {
         // Check if we've reached the maximum recursive depth
@@ -48,19 +52,14 @@ impl StateTransitionCircuitWithRecursion {
             return Err(anyhow!("Maximum recursive depth reached"));
         }
 
-        // Compute the next state using Poseidon hash
-        let current_state_hash = StateTransitionCircuit::to_hash_out(current_state)?;
-        let transition_data_hash = StateTransitionCircuit::to_hash_out(transition_data)?;
-        let computed_next_state = StateTransitionCircuit::compute_poseidon_hash(&current_state_hash, &transition_data_hash);
-        let next_state = StateTransitionCircuit::hash_out_to_bytes(&computed_next_state);
-
         // Validate state transition before generating proof
         if !Self::validate_state_transition(&current_state, &next_state, &transition_data) {
             return Err(anyhow!("Invalid state transition"));
         }
 
-        // Generate proof using static method
-        let proof = StateTransitionCircuit::generate_proof(current_state, next_state, transition_data)?;
+        // Generate proof using the circuit
+        let proof = self.circuit.generate_proof(current_state, next_state, transition_data)
+            .map_err(|e| anyhow!("Proof generation failed: {}", e))?;
         self.recursive_proofs.push(proof.clone());
         Ok(proof)
     }
@@ -114,11 +113,11 @@ impl StateTransitionCircuitWithRecursion {
         proof: ProofWithPublicInputs<GoldilocksField, C, 2>,
     ) -> Result<bool> {
         // Verify the main proof
-        StateTransitionCircuit::verify_proof(proof.clone())?;
+        self.circuit.verify_proof(proof.clone())?;
         
         // Verify all recursive proofs
         for recursive_proof in &self.recursive_proofs {
-            StateTransitionCircuit::verify_proof(recursive_proof.clone())?;
+            self.circuit.verify_proof(recursive_proof.clone())?;
         }
         
         Ok(true)
@@ -158,13 +157,15 @@ mod tests {
     fn test_recursive_proof_aggregation() -> Result<()> {
         let mut circuit = StateTransitionCircuitWithRecursion::new();
         
-        // Define initial state and transition data
+        // Define test states and transition data
         let initial_state = [1u8; 32];
-        let transition_data = [2u8; 32];
+        let next_state = [2u8; 32];
+        let transition_data = [3u8; 32];
         
         // Generate proof
         let proof = circuit.generate_proof(
             initial_state,
+            next_state,
             transition_data,
         )?;
 

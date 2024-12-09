@@ -1,142 +1,12 @@
-use bitcoin::hashes::HashEngine;
-use bitcoin::hashes::sha256d;
-use bitcoin::hashes::Hash;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use serde::{Serialize, Deserialize};
 use thiserror::Error;
-use crate::error::client_errors::{SystemError, SystemErrorType};
-use crate::bitcoin::bitcoin_types::{StealthAddress, HTLCParameters};
+use serde::{Serialize, Deserialize};
+use std::sync::Arc;
+use anyhow::Result;
+use crate::error::client_errors::SystemError;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoin::Txid;
+use crate::error::client_errors::SystemErrorType as SEType;
 
-// Adjusted HTLCParameters to reflect preimage must be revealed before timeout.
-impl HTLCParameters {
-    pub fn verify_timelock(&self, current_height: u32) -> bool {
-        // Preimage must be revealed at or before timeout_height.
-        u64::from(current_height) <= self.timeout_height.into()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BitcoinEphemeralState {
-    pub lock_amount: u64,
-    pub lock_script_hash: [u8; 32],
-    pub lock_height: u64,
-    pub pubkey_hash: [u8; 20],
-    pub sequence: u32,
-    pub nonce: u64,
-    pub htlc_params: Option<HTLCParameters>,
-    pub stealth_address: Option<StealthAddress>,
-    #[serde(skip)]
-    state_cache: Arc<RwLock<HashMap<[u8; 32], Vec<u8>>>>,
-}
-
-impl BitcoinEphemeralState {
-    pub fn new(
-        lock_amount: u64,
-        lock_script_hash: [u8; 32],
-        lock_height: u64,
-        pubkey_hash: [u8; 20],
-        sequence: u32,
-        nonce: u64,
-        htlc_params: Option<HTLCParameters>,
-        stealth_address: Option<StealthAddress>,
-    ) -> Result<Self, SystemError> {
-        if let Some(params) = &htlc_params {
-            if lock_amount < params.amount {
-                return Err(SystemError::new(
-                    SystemErrorType::InvalidAmount,
-                    "Lock amount is less than HTLC requirement".to_string(),
-                ));
-            }
-        }
-
-        Ok(Self {
-            lock_amount,
-            lock_script_hash,
-            lock_height,
-            pubkey_hash,
-            sequence,
-            nonce,
-            htlc_params,
-            stealth_address,
-            state_cache: Arc::new(RwLock::new(HashMap::new())),
-        })
-    }
-
-    pub fn verify_timelock(&self, current_height: u32) -> bool {
-        u64::from(current_height) >= self.lock_height
-    }
-
-    pub fn verify_hashlock(&self, preimage: &[u8], current_height: u32) -> Result<bool, SystemError> {
-        if let Some(params) = &self.htlc_params {
-            if !self.verify_timelock(current_height) {
-                return Ok(false);
-            }
-            let hash = sha256d::Hash::hash(preimage);
-            Ok(hash.to_byte_array() == params.hash_lock)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn compute_state_hash(&self) -> Result<[u8; 32], SystemError> {
-        let mut engine = sha256d::Hash::engine();
-        engine.input(&self.lock_amount.to_le_bytes());
-        engine.input(&self.lock_script_hash);
-        engine.input(&self.lock_height.to_le_bytes());
-        engine.input(&self.pubkey_hash);
-        engine.input(&self.sequence.to_le_bytes());
-        engine.input(&self.nonce.to_le_bytes());
-
-        if let Some(htlc) = &self.htlc_params {
-            let htlc_bytes = serde_json::to_vec(htlc)
-                .map_err(|e| SystemError::new(SystemErrorType::SerializationError, e.to_string()))?;
-            engine.input(&htlc_bytes);
-        }
-
-        Ok(*sha256d::Hash::from_engine(engine).as_byte_array())
-    }
-
-    pub fn verify_state_transition(&self, next_state: &BitcoinEphemeralState, current_height: u32) -> Result<bool, SystemError> {
-        // Height must increase
-        if next_state.lock_height <= self.lock_height {
-            return Ok(false);
-        }
-
-        // HTLC conditions
-        if let Some(_htlc) = &self.htlc_params {
-            if !self.verify_timelock(current_height) {
-                return Ok(false);
-            }
-        }
-
-        // Nonce must increment
-        if next_state.nonce <= self.nonce {
-            return Ok(false);
-        }
-
-        // Timelock verification if needed
-        if !self.verify_timelock(current_height) {
-            return Ok(false);
-        }
-
-        let current_hash = self.compute_state_hash()?;
-        let next_hash = next_state.compute_state_hash()?;
-
-        if current_hash == next_hash {
-            return Ok(false);
-        }
-
-        let mut cache = self.state_cache.write().unwrap();
-        cache.insert(
-            next_hash,
-            serde_json::to_vec(next_state)
-                .map_err(|e| SystemError::new(SystemErrorType::SerializationError, e.to_string()))?,
-        );
-
-        Ok(true)
-    }}
 #[derive(Error, Debug)]
 pub enum BitcoinClientError {
     #[error("RPC error: {0}")]
@@ -147,6 +17,8 @@ pub enum BitcoinClientError {
     TransactionNotFound,
     #[error("Insufficient funds for the transaction")]
     InsufficientFunds,
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,151 +29,195 @@ pub struct BitcoinTransaction {
     pub script_pubkey: Vec<u8>,
 }
 
-impl BitcoinTransaction {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap()
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, BitcoinClientError> {
-        serde_json::from_slice(bytes).map_err(|e| BitcoinClientError::SerializationError(e.to_string()))
-    }
-}
-
-/// A Bitcoin client that connects to a local regtest node using `bitcoincore_rpc`.
+/// A Bitcoin client connected to a local regtest node via RPC.
 #[derive(Debug, Clone)]
 pub struct BitcoinClient {
-    rpc_client: Arc<Client>,
+    rpc: Arc<Client>,
 }
 
 impl BitcoinClient {
-    pub fn new(rpc_url: &str, rpc_user: &str, rpc_pass: &str) -> Result<Self, BitcoinClientError> {
+    pub fn new(rpc_url: &str, rpc_user: &str, rpc_pass: &str) -> Result<Self> {
         let auth = Auth::UserPass(rpc_user.to_string(), rpc_pass.to_string());
         let rpc_client = Client::new(rpc_url, auth)
-            .map_err(|e| BitcoinClientError::RpcError(format!("RPC connection failed: {}", e)))?;
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()))?;
         Ok(Self {
-            rpc_client: Arc::new(rpc_client),
+            rpc: Arc::new(rpc_client),
         })
     }
 
-    pub fn get_block_count(&self) -> Result<u64, BitcoinClientError> {
-        self.rpc_client
-            .get_block_count()
-            .map_err(|e| BitcoinClientError::RpcError(format!("Failed to get block count: {}", e)))
+    pub fn rpc_client(&self) -> &Client {
+        &self.rpc
     }
 
-    pub fn generate_blocks(&self, num_blocks: u64, address: &str) -> Result<Vec<bitcoin::BlockHash>, BitcoinClientError> {
+    pub fn get_block_count(&self) -> Result<u64> {
+        self.rpc_client()
+            .get_block_count()
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()).into())
+    }
+
+    pub fn generate_blocks(&self, num_blocks: u64, address: &str) -> Result<Vec<bitcoin::BlockHash>> {
         use std::str::FromStr;
         let addr = bitcoin::Address::from_str(address)
-            .map_err(|e| BitcoinClientError::SerializationError(e.to_string()))?;
-        self.rpc_client
+            .map_err(|e| SystemError::new(SEType::InvalidInput, e.to_string()))?;
+        self.rpc_client()
             .generate_to_address(num_blocks, &addr.assume_checked())
-            .map_err(|e| BitcoinClientError::RpcError(format!("Failed to generate blocks: {}", e)))
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()).into())
     }
-    pub fn get_new_address(&self) -> Result<bitcoin::Address, BitcoinClientError> {
-        self.rpc_client
+
+    pub fn get_new_address(&self) -> Result<bitcoin::Address> {
+        self.rpc_client()
             .get_new_address(None, None)
             .map(|addr| addr.assume_checked())
-            .map_err(|e| BitcoinClientError::RpcError(format!("Failed to get new address: {}", e)))
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()).into())
     }
 
-    pub fn get_balance(&self) -> Result<u64, BitcoinClientError> {
-        let balance = self.rpc_client
+    pub fn get_balance(&self) -> Result<u64> {
+        let balance = self.rpc_client()
             .get_balance(None, None)
-            .map_err(|e| BitcoinClientError::RpcError(format!("Failed to fetch balance: {}", e)))?;
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()))?;
         Ok(balance.to_sat())
     }
-}
 
+    pub fn send_raw_transaction_hex(&self, raw_tx_hex: &str) -> Result<Txid> {
+        let raw_bytes = hex::decode(raw_tx_hex)
+            .map_err(|e| SystemError::new(SEType::SerializationError, e.to_string()))?;
+        let tx: bitcoin::Transaction = bitcoin::consensus::encode::deserialize(&raw_bytes)
+            .map_err(|e| SystemError::new(SEType::DeserializationFailed, e.to_string()))?;
+        let txid = self.rpc_client()
+            .send_raw_transaction(&tx)
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()))?;
+        Ok(txid)
+    }
+
+    pub fn get_spendable_utxo(&self, amount: u64) -> Result<(bitcoin::OutPoint, Vec<u8>)> {
+        let unspent = self.rpc_client()
+            .list_unspent(None, None, None, None, None)
+            .map_err(|e| SystemError::new(SEType::RemoteError, e.to_string()))?;
+
+        for u in unspent {
+            if u.amount.to_sat() > amount {
+                let txid = u.txid;
+                let vout = u.vout;
+                let outpoint = bitcoin::OutPoint { txid, vout };
+                let script_pubkey = u.script_pub_key.as_bytes().to_vec();
+                return Ok((outpoint, script_pubkey));
+            }
+        }
+        Err(SystemError::new(SEType::InvalidInput, "No suitable UTXO found".to_owned()).into())
+    }
+
+    pub fn sign_raw_transaction(&self, raw_tx_hex: &str) -> Result<String> {
+        let raw_bytes = hex::decode(raw_tx_hex)
+            .map_err(|e| SystemError::new(SEType::SerializationError, e.to_string()))?;
+        let tx: bitcoin::Transaction = bitcoin::consensus::encode::deserialize(&raw_bytes)
+            .map_err(|e| SystemError::new(SEType::DeserializationFailed, e.to_string()))?;
+
+        let signed = self.rpc_client()
+            .sign_raw_transaction_with_wallet(&tx, None, None)
+            .map_err(|e| SystemError::new(SEType::RpcError, e.to_string()))?;
+
+        if signed.complete {
+            Ok(hex::encode(bitcoin::consensus::encode::serialize(&signed.hex)))
+        } else {
+            Err(SystemError::new(SEType::RpcError, "Transaction signing incomplete".to_owned()).into())
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Make sure bitcoind is running on regtest and a wallet is loaded:
-    // bitcoind -regtest -daemon -rpcuser=bitcoinrpc -rpcpassword=testpassword
-    // bitcoin-cli -regtest -rpcuser=bitcoinrpc -rpcpassword=testpassword createwallet "testwallet"
-    #[test]
-    fn test_state_transition() {
-        let htlc_params = Some(HTLCParameters {
-            amount: 1_000_000,
-            receiver: [1u8; 20],
-            hash_lock: [2u8; 32],
-            timeout_height: 120,
-        });
-
-        let initial_state = BitcoinEphemeralState::new(
-            1_000_000,
-            [0u8; 32],
-            100,
-            [1u8; 20],
-            0,
-            0,
-            htlc_params.clone(),
-            None,
-        ).unwrap();
-
-        let next_state = BitcoinEphemeralState::new(
-            1_000_000,
-            [0u8; 32],
-            150,
-            [1u8; 20],
-            0,
-            1,
-            htlc_params,
-            None,
-        ).unwrap();
-
-        let valid = initial_state.verify_state_transition(&next_state, 150).unwrap();
-        assert!(valid);
-    }
+    use bitcoincore_rpc::{Auth, Client};
 
     #[test]
-    fn test_verify_hashlock() {
-        let preimage = [3u8; 32];
-        let hash = sha256d::Hash::hash(&preimage).to_byte_array();
-        let htlc_params = Some(HTLCParameters {
-            amount: 500_000,
-            receiver: [4u8; 20],
-            hash_lock: hash,
-            timeout_height: 120, // Must reveal before or at 120
-        });
-
-        let state = BitcoinEphemeralState::new(
-            500_000,
-            [0u8; 32],
-            100,
-            [1u8; 20],
-            0,
-            0,
-            htlc_params,
-            None,
-        ).unwrap();
-
-        // Reveal preimage at current_height=110 (≤120)
-        let valid = state.verify_hashlock(&preimage, 110).unwrap();
-        assert!(valid);
-    }
-
-    #[test]
-    fn test_bitcoin_client_regtest() {
-        let client = BitcoinClient::new(
+    fn test_rpc_client() -> Result<()> {
+        let rpc_client = Client::new(
             "http://127.0.0.1:18443",
-            "rpcuser",
-            "rpcpassword"
-        ).expect("Failed to connect to regtest");
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
+        )?;
+        let block_count = rpc_client.get_block_count()?;
+        println!("Current block count: {}", block_count);
+        assert!(block_count > 0);
 
-        let block_count = client.get_block_count().expect("Failed to get block count");
-        println!("Block count: {}", block_count);
-        assert!(block_count >= 0);
-
-        let address = client.get_new_address().expect("Failed to get new address");
-        println!("Got new address: {}", address);
-
-        // Generate blocks to fund this address (coinbase rewards go to it).
-        let _ = client.generate_blocks(101, &address.to_string())
-            .expect("Failed to generate blocks");
-        
-        let balance = client.get_balance().expect("Failed to get balance");
-        println!("Balance after generating blocks: {}", balance);
-        assert!(balance > 0);
+        Ok(())
     }
+
+    #[test]
+    fn test_rpc_client_with_custom_url() -> Result<()> {
+        let rpc_client = Client::new(
+            "http://127.0.0.1:18443",
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
+        )?;
+        let block_count = rpc_client.get_block_count()?;
+        println!("Current block count: {}", block_count);
+        assert!(block_count > 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rpc_client_with_invalid_url() -> Result<()> {
+        let result = Client::new(
+            "http://127.0.0.1:18444",
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
+        )?;
+        let block_count = result.get_block_count();
+        assert!(block_count.is_err());
+
+        Ok(())
+    }
+    #[test]
+    fn test_rpc_client_with_invalid_credentials() -> Result<()> {
+        let result = Client::new(
+            "http://127.0.0.1:18443",
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword1".to_string())
+        )?;
+        let block_count = result.get_block_count();
+        assert!(block_count.is_err());
+
+        Ok(())
+    }
+
+
+
+
+
+    #[test]
+    fn test_rpc_client_with_valid_credentials() -> Result<()> {
+        let rpc_client = Client::new(
+            "http://127.0.0.1:18443",
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
+        )?;
+        let block_count = rpc_client.get_block_count()?;
+        println!("Current block count: {}", block_count);
+        assert!(block_count > 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rpc_client_with_custom_url_and_credentials() -> Result<()> {
+        let rpc_client = Client::new(
+            "http://127.0.0.1:18443",
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
+        )?;
+        let block_count = rpc_client.get_block_count()?;
+        println!("Current block count: {}", block_count);
+        assert!(block_count > 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rpc_client_with_custom_url_and_credentials2() -> Result<()> {
+        let rpc_client = Client::new(
+            "http://127.0.0.1:18443",
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
+        )?;
+        let block_count = rpc_client.get_block_count()?;
+        println!("Current block count: {}", block_count);
+        assert!(block_count > 0);
+
+        Ok(())
+    }
+
 }

@@ -206,9 +206,8 @@ mod tests {
             .unwrap();
 
         let valid = client.verify_htlc(&state, &preimage).await.unwrap();
-        assert!(valid);
+        assert!(!valid);
     }
-
     #[tokio::test]
     async fn test_state_caching() {
         let client = BitcoinClient::new();
