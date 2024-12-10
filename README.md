@@ -1,174 +1,132 @@
-![Overpass Logo](docs/images/ovpbtcbanner.png)
+# Overpass Channels Protocol - E2E Integration Test
 
-## For more information head over to: [overpass.network](https://overpass.network)
+This repository includes a comprehensive end-to-end (E2E) test to verify the functionality of the Overpass Channels Protocol. The test simulates the creation, management, and verification of channel states, as well as anchoring states to Bitcoin via OP_RETURN transactions.
 
-# **🚀 Overpass Protocol: Privacy-Preserving Transactions on Bitcoin ₿**
+## Overview
 
-## **🦄 Overview**
+### The E2E test demonstrates:
+	•	Initialization of a Bitcoin client and generation of blocks.
+	•	Creation of channel states and their transitions.
+	•	Updating Sparse Merkle Trees (SMTs) for wallet and channel state management.
+	•	Verification of Merkle proofs for channel state consistency.
+	•	Secure anchoring of state to Bitcoin using an OP_RETURN transaction.
 
-Overpass Protocol is a groundbreaking unilateral channel + ZKP + SMT(Sparse Merkle Tree) network that enables private, secure, and scalable off-chain transactions on the Bitcoin blockchain. By leveraging advanced cryptography, zero-knowledge proofs, and unilateral state channel technology, Overpass provides unprecedented privacy while maintaining the security guarantees of the Bitcoin network.
+## Requirements
 
-## **📚 Key Features:**
+### Before running the test, ensure the following dependencies are installed:
+	1.	Bitcoin Testnet Node:
+	•	A fully synchronized Bitcoin node configured for regtest or testnet mode.
+	•	Ensure RPC access is enabled.
+	2.	Programming Environment:
+	•	Rust (for running the Overpass Protocol codebase).
+	•	Cargo (Rust’s package manager and build system).
+	3.	Dependencies:
+	•	The repository should include all necessary crates for Sparse Merkle Trees (SMTs), hashing (Poseidon), and Bitcoin interaction.
 
-- **Privacy-Preserving Transactions**: Enhanced transaction privacy using stealth addresses and zero-knowledge proofs
-- **Scalable State Channels**: Efficient off-chain scaling solution with instant finality
-- **Bitcoin Compatibility**: Seamless integration with the Bitcoin network
-- **Secure HTLC Implementation**: Hash Time-Locked Contracts for trustless cross-chain operations
-- **Advanced Cryptography**: Implements cutting-edge cryptographic primitives including:
-  - Sparse Merkle Trees for efficient state management
-  - Zero-knowledge circuits for private state transitions
-  - ChaCha20-Poly1305 for secure encryption
+## How to Run the Test
 
-## **🏗️ Architecture:**
+1. Clone the Repository
 
-Overpass consists of three main components:
+git clone https://github.com/<your-repo>/overpass-e2e-test.git
+cd overpass-e2e-test
 
-1. **Core Protocol** (`overpass_core/`):
-   - State channel implementation
-   - Cryptographic primitives
-   - Bitcoin integration
-   - Network protocol
+2. Build the Project
 
-2. **WASM Module** (`overpass_wasm/`):
-   - WebAssembly bindings
-   - Browser-compatible crypto operations
-   - Client-side state management
+Ensure the project builds without errors:
 
-3. **Frontend Interface** (`frontend/`):
-   - React-based user interface
-   - Real-time transaction monitoring
-   - Wallet management
-   - Channel operations dashboard
-
-## **🔧 Development Setup:**
-
-
-### Prerequisites
-
-- Rust 1.75+
-- Node.js 18+
-- WASM Pack
-- Bitcoin Core (for development)
-
-## **🏁 Overpass Demo Project:**
-
-This project demonstrates the core functionality of the Overpass privacy-first state channel network.
-
-## Installation
-```bash
-# Clone repository
-git clone https://github.com/yourusername/overpass.git
-cd overpass
-
-# Install dependencies
 cargo build
-cd frontend && npm install
 
-# Build WASM module
-cd overpass_wasm && wasm-pack build
+3. Start a Bitcoin Regtest Node
 
-# Start development environment
-npm run dev
-```
-### In a new terminal window:
-```
-chmod +x setup.sh
-./setup.sh
-```
+If you don’t already have a regtest node running, start one:
 
-## Available Demos
+bitcoind -regtest -daemon
 
-1. **Full Demo**
-   ```bash
-   npm run demo
-   ```
-   Demonstrates all Overpass features in sequence.
+### Generate initial blocks to set up the environment:
 
-2. **Wallet Demo**
-   ```bash
-   npm run demo:wallet
-   ```
-   Shows wallet creation and management.
+bitcoin-cli -regtest generate 101
 
-3. **Payment Channel Demo**
-   ```bash
-   npm run demo:payment
-   ```
-   Demonstrates payment channel operations.
+4. Run the Test
 
-4. **HTLC Demo**
-   ```bash
-   npm run demo:htlc
-   ```
-   Shows Hash Time-Locked Contract functionality.
+### Execute the integration test using cargo:
 
-## Getting Started
+cargo test --test e2e_integration
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+#### Expected Output
 
-2. Run the full demo:
-   ```bash
-   npm run demo
-   ```
+The test will log the following:
+	1.	Bitcoin Initialization:
+	•	Generates a Bitcoin address and 101 blocks for the test environment.
+	•	Outputs wallet balance.
+#### Example:
 
-## Demo Components
+Bitcoin client initialized
+Generated address: bcrt1q2jaj9tdanu85m269ym27qn9e38va7ljdmg08kl
+Generated 101 blocks
+Wallet balance: 617499987108
 
-- `wallet-demo.ts`: Wallet creation and management
-- `payment-channel-demo.ts`: Payment channel operations
-- `htlc-demo.ts`: Hash Time-Locked Contracts
-- `run-demo.ts`: Full demo runner
 
-## **🔐 Security Considerations:**
+	2.	Channel State Creation:
+	•	Creates an initial channel state with balances, metadata, and an SMT root.
+	•	Example:
 
-Overpass implements multiple layers of security:
+Initial state created: ChannelState { balances: [100, 50], nonce: 0, metadata: [], merkle_root: [...] }
 
-- State verification through zero-knowledge proofs
-- Secure multi-party computation for channel operations
-- Time-locked fallback mechanisms
-- Encrypted state storage
-- Quantum-resistant cryptographic primitives
 
-## **🚧 Development Status:**
+	3.	State Transition:
+	•	Logs balance deltas, nonce updates, and the resulting hashed state.
+	•	Example:
 
-⚠️ **Warning**: Overpass is currently in active development and not ready for production use. Use at your own risk.
+Delta balance 0: -3
+Delta balance 1: 3
+Delta nonce: 1
 
-Current development phase: `Alpha`
 
-## Contributing
+	4.	Merkle Tree Updates:
+	•	Updates and verifies the Sparse Merkle Tree with the new state.
+	5.	OP_RETURN Transaction:
+	•	Creates and broadcasts an OP_RETURN transaction to anchor the state on Bitcoin.
+	•	Example:
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+Transaction sent with ID: c2a7098651e661eee11718265e748fe6032a2433e1d10eae00ad9625391e0935
 
-- Code style
-- Development workflow
-- Testing requirements
-- Security considerations
 
-## **📖 Documentation:**
+	6.	Test Completion:
+	•	Confirms that all operations completed successfully.
+	•	Example:
 
-- [Technical Specification](docs/SPEC.md)
-- [API Reference](docs/API.md)
-- [Security Model](docs/SECURITY.md)
-- [Architecture Overview](docs/ARCHITECTURE.md)
+Test completed successfully
+test result: ok. 1 passed; 0 failed; finished in 1.08s
 
-## **📜 License:**
+Understanding the Code
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+The test script includes the following key components:
+	1.	Bitcoin Client Initialization:
+	•	Initializes a Bitcoin regtest client for creating blocks and managing UTXOs.
+	2.	Channel State Management:
+	•	Creates and manages channel states using Sparse Merkle Trees.
+	3.	Cryptographic Hashing:
+	•	Uses Poseidon hash function to compute state roots.
+	4.	Merkle Proof Verification:
+	•	Verifies that channel states are valid against the SMT root.
+	5.	OP_RETURN Transaction:
+	•	Anchors the SMT root on Bitcoin using an OP_RETURN transaction for trustless verification.
 
-## **🙏 Acknowledgments:**
+## Troubleshooting
 
-- Bitcoin Core Team
-- Plonky2 Developers
-- The Zero Knowledge Community
+Common Issues:
+	1.	Bitcoin Node Not Running:
+	•	Ensure your Bitcoin node is running in regtest mode before starting the test.
+	•	Run bitcoin-cli -regtest getblockchaininfo to confirm the node is active.
+	2.	Insufficient Blocks:
+	•	Generate additional blocks if the wallet balance is insufficient:
 
-## **📧 Contact:**
+bitcoin-cli -regtest generate 10
 
-- **GitHub Issues 💻 :** [Project Issues](https://github.com/yourusername/overpass/issues)
-- **Mail 📨 :** info@overpass.network
 
----
+	3.	Compilation Errors:
+	•	Ensure all dependencies are installed. Run:
 
-### *Built with ❤️ by the Overpass Team:*
-## **🔎 Irrefutable Labs 🔐**
+cargo update
+
+
