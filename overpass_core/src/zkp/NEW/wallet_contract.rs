@@ -1,7 +1,7 @@
 // src/zkp/wallet_contract.rs
 
-use crate::zkp::pedersen_parameters::PedersenParameters;
-use crate::zkp::state_proof::StateProof;
+use crate::zkp::helpers::StateProof;
+use crate::zkp::state_proof::StateProof as OtherStateProof;
 use crate::zkp::global_root_contract::GlobalRootContract;
 use std::collections::HashMap;
 use crate::zkp::channel::ChannelState;
@@ -12,6 +12,9 @@ use crate::zkp::helpers::{
     generate_state_proof,
 };
 use crate::zkp::mobile_optimized_storage::MobileOptimizedStorage;
+
+
+use super::state_proof;
 
 /// Type alias for bytes32.
 pub type Bytes32 = [u8; 32];
@@ -56,10 +59,9 @@ impl WalletContract {
     ) -> bool {
         if self.channels.contains_key(&channel_id) {
             return false; // Channel already exists
-        }
+        }Self::
 
-        // Call as an associated function
-        let sanitized_metadata = Self::sanitize_metadata(metadata).unwrap_or_else(|| vec![]);
+        let sanitized_metadata = sanitize_metadata(metadata).unwrap_or_else(|| vec![]);
         let channel = ChannelState {
             balances: vec![initial_balance],
             nonce: 0,
@@ -74,7 +76,7 @@ impl WalletContract {
         self.update_merkle_root();
 
         // Register wallet in global root contract
-        match self.global_contract.register_wallet(self.merkle_root) {
+        match self.global_contract.register_wallet(self.wallet_id, self.merkle_root) {
             Ok(_) => true,
             Err(e) => {
                 eprintln!("Failed to register wallet in global contract: {:?}", e);
@@ -96,7 +98,7 @@ impl WalletContract {
     fn update_merkle_root(&mut self) {
         self.merkle_root = compute_channel_root([0u8; 32], [0u8; 32], self.channels.len() as u64);
     }
-
+}
     /// Updates a channel's state and generates a proof.
     pub fn update_channel(
         &mut self,
@@ -130,13 +132,13 @@ impl WalletContract {
                 channel_id,
                 [0u8; 32], // Placeholder for old commitment
                 new_commitment,
-                StateProof::from(proof.clone()), // Corrected from helpers::StateProof::from(...)
+                helpers::StateProof::from(proof.clone()),
                 serde_json::Value::Null, // Replace with actual metadata if needed
             ).expect("Failed to store transaction");
             
             // Update global root contract
             self.global_contract
-                .update_wallet(self.merkle_root, proof) // Removed self.wallet_id argument
+                .update_wallet(self.wallet_id, self.merkle_root, proof)
                 .expect("Failed to update wallet in global contract");
             
             true
@@ -144,4 +146,3 @@ impl WalletContract {
             false
         }
     }
-}

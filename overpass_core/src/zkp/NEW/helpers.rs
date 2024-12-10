@@ -1,9 +1,8 @@
 // src/zkp/helpers.rs
-
 use std::time::UNIX_EPOCH;
 use std::time::SystemTime;
-
 /// Helper functions and type definitions for Zero-Knowledge Proofs.
+
 
 use sha2::{Sha256, Digest};
 use curve25519_dalek::ristretto::RistrettoPoint;
@@ -13,9 +12,6 @@ use rand::RngCore;
 use std::collections::HashMap;
 
 use serde::{Serialize, Deserialize};
-
-// Import PedersenParameters from pedersen_parameters module
-use crate::zkp::pedersen_parameters::PedersenParameters;
 
 /// Type alias for bytes32.
 pub type Bytes32 = [u8; 32];
@@ -147,9 +143,7 @@ pub fn verify_wallet_proof(
     
     // Verify the proof matches the expected hash
     proof.pi == expected
-}
-
-/// Verifies a zero-knowledge proof using Pedersen commitments.
+}/// Verifies a zero-knowledge proof using Pedersen commitments.
 /// This is a basic implementation that should be replaced with a proper ZK proof system.
 pub fn verify_zk_proof(
     proof: &[u8; 32],
@@ -184,9 +178,7 @@ pub fn verify_zk_proof(
     // Compare proof against expected hash
     // In a real implementation, this would be replaced with actual ZK verification
     proof == &expected
-}
-
-/// Generates a zero-knowledge proof of state transition.
+}/// Generates a zero-knowledge proof of state transition.
 /// Replace with actual ZK proof generation logic using a library like Plonky2.
 pub fn generate_state_proof(
     old_commitment: Bytes32,

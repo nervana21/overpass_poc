@@ -1,17 +1,17 @@
 // src/zkp/pedersen_parameters.rs
 
-use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use serde_json::to_string;
+use toml::to_string;
 use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use sha2::Digest;   
+use sha2::Sha256;
+use bip39::serde as bip39;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
-// Removed conflicting imports and unused `to_string` functions
-// use serde_json::to_string;
-// use toml::to_string;
-// use bip39::serde as bip39;
 
 /// Core cryptographic parameters for Pedersen commitments.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PedersenParameters {
     /// Base generator point.
     pub g: RistrettoPoint,
@@ -21,11 +21,11 @@ pub struct PedersenParameters {
     pub lambda: u32,
 }
 
-impl Default for PedersenParameters {
+impl  Default for PedersenParameters {
     fn default() -> Self {
         Self::new(128)
     }
-} // Added Default trait implementation
+}   // Added Default trait implementation
 
 impl PedersenParameters {
     /// Creates default Pedersen parameters.
@@ -41,9 +41,8 @@ impl PedersenParameters {
         }
     }
 }
-
-/// Serialize helper struct for PedersenParameters.
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+// Added Serialize and Deserialize traits for PedersenParameters
+#[derive(Serialize, Deserialize)]
 pub struct SerdePedersenParameters {
     pub g: [u8; 32],
     pub h: [u8; 32],
@@ -70,30 +69,25 @@ impl From<SerdePedersenParameters> for PedersenParameters {
     }
 }
 
-/// Saves PedersenParameters to a file using serde_json.
+// Added a function to save PedersenParameters to a file
 pub fn save_pedersen_parameters_to_file(params: PedersenParameters, file_path: &str) -> std::io::Result<()> {
     let serde_params: SerdePedersenParameters = params.into();
-    let serialized = serde_json::to_string(&serde_params).unwrap(); // Changed to serde_json::to_string
+    let serialized = bip39::to_string(&serde_params).unwrap();
     std::fs::write(file_path, serialized)
 }
 
-/// Loads PedersenParameters from a file using serde_json.
+// Added a function to load PedersenParameters from a file
 pub fn load_pedersen_parameters_from_file(file_path: &str) -> std::io::Result<PedersenParameters> {
     let serialized = std::fs::read_to_string(file_path)?;
     let serde_params: SerdePedersenParameters = serde_json::from_str(&serialized)?;
     Ok(serde_params.into())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_save_and_load_pedersen_parameters() {
-        let params = PedersenParameters::new(128);
-        let file_path = "test_pedersen_params.json"; // Changed to .json for serde_json
-        save_pedersen_parameters_to_file(params.clone(), file_path).unwrap();
-        let loaded_params = load_pedersen_parameters_from_file(file_path).unwrap();
-        assert_eq!(params, loaded_params);
-    }
+use toml::to_string;
+#[test]
+fn test_save_and_load_pedersen_parameters() {
+    let params = PedersenParameters::new(128);
+    let file_path = "test_pedersen_params.toml";
+    save_pedersen_parameters_to_file(params, file_path).unwrap();
+    let loaded_params = load_pedersen_parameters_from_file(file_path).unwrap();
+    assert_eq!(params, loaded_params);
 }
