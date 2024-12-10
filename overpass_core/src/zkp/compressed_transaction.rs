@@ -3,7 +3,7 @@
 use serde::{Serialize, Deserialize};
 
 /// Type alias for bytes32.
-pub type Bytes32 = [u8;32];
+pub type Bytes32 = [u8; 32];
 
 /// Efficient storage format for historical transactions.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

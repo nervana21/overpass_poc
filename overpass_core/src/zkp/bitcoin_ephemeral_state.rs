@@ -1,16 +1,16 @@
 // src/zkp/bitcoin_ephemeral_state.rs
 
+use std::str::FromStr;
 use anyhow::{anyhow, Context, Result};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoin::{
     blockdata::transaction::{Transaction, TxIn, TxOut}, consensus::encode, Address, Network, OutPoint, ScriptBuf
-    
 };
 use bitcoin::PublicKey;
 use bitcoin::blockdata::script::Builder;
 use bitcoin::secp256k1::{Secp256k1, SecretKey, All};
 use std::collections::HashMap;
-use std::str::FromStr;
+
 /// Represents a simple Bitcoin client for testing purposes.
 pub struct BitcoinClient {
     rpc: Client,
@@ -120,18 +120,20 @@ impl BitcoinClient {
         Builder::new()
             .push_opcode(bitcoin::blockdata::opcodes::all::OP_DUP)
             .push_opcode(bitcoin::blockdata::opcodes::all::OP_HASH160)
-            .push_slice(&bitcoin::PublicKey::from(*public_key).pubkey_hash())
+            .push_slice(&public_key.pubkey_hash())
             .push_opcode(bitcoin::blockdata::opcodes::all::OP_EQUALVERIFY)
             .push_opcode(bitcoin::blockdata::opcodes::all::OP_CHECKSIG)
             .into_script()
     }
+
     /// Generates a key pair for signing transactions.
     pub fn generate_keypair(&self, secret_key: &SecretKey) -> PublicKey {
         PublicKey::from_private_key(&self.secp, &bitcoin::PrivateKey::from_slice(&secret_key[..], self.network).unwrap())
-    }}
+    }
+}
 
 /// Builds an OP_RETURN transaction embedding the provided data.
-pub fn build_op_return_transaction(client: &mut BitcoinClient, data: &[u8], private_key: &SecretKey) -> Result<String> {
+pub fn build_op_return_transaction(client: &mut BitcoinClient, _data: &[u8; 32], private_key: &SecretKey) -> Result<String> {
     // Generate key pair
     let public_key = client.generate_keypair(private_key);
     let script_pubkey = client.create_p2pkh_script(&public_key);
@@ -146,7 +148,8 @@ pub fn build_op_return_transaction(client: &mut BitcoinClient, data: &[u8], priv
 
     // Build OP_RETURN script
     let op_return_script = Builder::new()
-        .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN) .into_script();      
+        .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN)
+        .into_script();      
 
     // Create inputs and outputs
     let tx_in = TxIn {

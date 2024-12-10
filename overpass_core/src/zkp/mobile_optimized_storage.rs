@@ -1,14 +1,15 @@
 // src/zkp/mobile_optimized_storage.rs
 use std::num::NonZero;
 use crate::zkp::channel::ChannelState;
+use std::fmt;
 /// Local Storage Layer (Level 3)
 /// Hybrid hot/cold storage optimized for mobile devices.
 
 use crate::zkp::compressed_transaction::CompressedTransaction;
-use crate::zkp::helpers::{Bytes32, compute_merkle_root as other_compute_merkle_root};
+use crate::zkp::helpers::Bytes32;
 use crate::zkp::state_proof::StateProof;
 use lru::LruCache;
-use serde::{Deserialize, Serialize};
+
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
@@ -23,18 +24,20 @@ pub enum StorageError {
 /// MobileOptimizedStorage handles hybrid hot/cold storage for mobile devices.
 pub struct MobileOptimizedStorage {
     /// Hot storage (active data): channels and recent transactions.
+    #[allow(dead_code)]
     active_channels: LruCache<Bytes32, ChannelState>,
     recent_transactions: LruCache<Bytes32, Vec<CompressedTransaction>>,
     
     /// Cold storage (compressed historical data).
     transaction_history: HashMap<Bytes32, Vec<CompressedTransaction>>,
+    #[allow(dead_code)]
     channel_roots: HashMap<Bytes32, Bytes32>,
     
     /// Performance parameters.
     compression_threshold: usize, // Number of transactions before compression
+    #[allow(dead_code)]
     retention_period: u64,        // Retention period in seconds
 }
-
 impl MobileOptimizedStorage {
     /// Creates a new MobileOptimizedStorage instance.
     pub fn new(compression_threshold: usize, retention_period: u64) -> Self {
@@ -164,3 +167,15 @@ fn hash_pair(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
     parent.copy_from_slice(&result);
     parent
 }
+
+impl fmt::Display for StorageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StorageError::TransactionTooOld => write!(f, "Transaction is too old"),
+            StorageError::StorageLimitExceeded => write!(f, "Storage limit exceeded"),
+            StorageError::Other(msg) => write!(f, "Storage error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for StorageError {}

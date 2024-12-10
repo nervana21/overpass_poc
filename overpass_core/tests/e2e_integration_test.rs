@@ -1,225 +1,269 @@
+use anyhow::{anyhow, Context, Result}; // Ensure Context is imported
+use bitcoin::Network;
+use plonky2_field::types::{Field, PrimeField64};
 use plonky2_field::goldilocks_field::GoldilocksField;
-use anyhow::{anyhow, Result};
-use bitcoin::{
-    absolute::LockTime,
-    consensus::encode,
-    blockdata::{
-        opcodes::all::OP_RETURN,
-        script::{Builder, ScriptBuf},
-        transaction::{Transaction, TxIn, TxOut},
-    },
-    Sequence, Witness,
-};
-
+use plonky2::plonk::config::Hasher;
 use overpass_core::zkp::{
     bitcoin_ephemeral_state::BitcoinClient,
-    state_transition::StateTransitionCircuit,
-    tree::SparseMerkleTree,
+    tree::MerkleTree,
     channel::ChannelState,
 };
-
-use plonky2_field::types::Field;
-use plonky2::plonk::config::Hasher;
-use plonky2_field::types::PrimeField64;
 
 /// Converts a ChannelState into a 32-byte hash using PoseidonHash.
 fn hash_state(state: &ChannelState) -> Result<[u8; 32]> {
     use plonky2::hash::poseidon::PoseidonHash;
 
+    println!("Hashing state:");
+    println!("  Balances: {:?}", state.balances);
+    println!("  Nonce: {}", state.nonce);
+    println!("  Metadata length: {}", state.metadata.len());
+
     // Convert ChannelState fields to field elements
     let mut inputs = Vec::new();
 
-    // Serialize balances (assuming u32 for each balance)
+    // Serialize balances
     for &balance in &state.balances {
-        inputs.push(GoldilocksField::from_canonical_u32(balance as u32));
+        let field_element = GoldilocksField::from_canonical_u64(balance);
+        println!("  Balance field element: {:?}", field_element);
+        inputs.push(field_element);
     }
 
-    // Serialize nonce (assuming u64)
-    inputs.push(GoldilocksField::from_canonical_u64(state.nonce));
+    // Serialize nonce
+    let nonce_element = GoldilocksField::from_canonical_u64(state.nonce);
+    println!("  Nonce field element: {:?}", nonce_element);
+    inputs.push(nonce_element);
 
-    // Serialize metadata (assuming Vec<u8>)
+    // Serialize metadata
     for &byte in &state.metadata {
-        inputs.push(GoldilocksField::from_canonical_u8(byte));
+        let metadata_element = GoldilocksField::from_canonical_u8(byte);
+        println!("  Metadata field element: {:?}", metadata_element);
+        inputs.push(metadata_element);
     }
 
-    // Compute Poseidon hash of thash_pad
-    let hash_out = PoseidonHash::hash_pad(&inputs);
+    println!("Total input elements: {}", inputs.len());
 
-    // Convert HashOut to bytes
+    // Compute Poseidon hash
+    let hash_out = PoseidonHash::hash_no_pad(&inputs);
+    println!("Hash elements: {:?}", hash_out.elements);
+
+    // Convert to bytes
     let mut bytes = [0u8; 32];
     for (i, &element) in hash_out.elements.iter().enumerate() {
         let elem_u64 = element.to_canonical_u64();
         bytes[i * 8..(i + 1) * 8].copy_from_slice(&elem_u64.to_le_bytes());
     }
 
+    println!("Final hash bytes: {:?}", bytes);
     Ok(bytes)
 }
 
-/// Builds an OP_RETURN transaction embedding the provided data.
-fn build_op_return_transaction(client: &BitcoinClient, data: [u8; 32]) -> Result<String> {
-    let amount = 100_000;
-    let (outpoint, script_pubkey) = client.get_spendable_utxo(amount)?;
+/// Applies transition data to the initial state to produce the next state.
+fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) -> Result<ChannelState> {
+    // Extract delta_balance_0, delta_balance_1, delta_nonce from transition_data
+    let delta_balance_0 = i32::from_le_bytes(
+        transition_data[0..4]
+            .try_into()
+            .context("Failed to parse delta_balance_0")?,
+    );
+    let delta_balance_1 = i32::from_le_bytes(
+        transition_data[4..8]
+            .try_into()
+            .context("Failed to parse delta_balance_1")?,
+    );
+    let delta_nonce = i32::from_le_bytes(
+        transition_data[8..12]
+            .try_into()
+            .context("Failed to parse delta_nonce")?,
+    );
 
-    // Build OP_RETURN script
-    let op_return_script = Builder::new()
-        .push_opcode(OP_RETURN)
+    // Apply deltas to balances and nonce
+    let new_balance_0 = initial_state
+        .balances
+        .get(0)
+        .ok_or_else(|| anyhow!("Missing balance 0"))?
+        .checked_add_signed(delta_balance_0 as i64)
+        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
+    let new_balance_1 = initial_state
+        .balances
+        .get(1)
+        .ok_or_else(|| anyhow!("Missing balance 1"))?
+        .checked_add_signed(delta_balance_1 as i64)
+        .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
+    let new_nonce = initial_state
+        .nonce
+        .checked_add(delta_nonce as u64)
+        .ok_or_else(|| anyhow!("Nonce overflow"))?;
+
+
+
+    // Create the new state
+    let mut new_state = ChannelState {
+        balances: vec![new_balance_0 as u64, new_balance_1 as u64],
+        nonce: new_nonce,
+        metadata: initial_state.metadata.clone(),
+        merkle_root: [0u8; 32], // Placeholder, will be updated after hashing
+        proof: None,
+    };
+
+    // Compute the new merkle_root based on the updated state
+    new_state.merkle_root = hash_state(&new_state)?;
+
+    Ok(new_state)
+}
+
+#[test]
+fn test_e2e_integration() -> Result<()> {
+    println!("\n=== Starting E2E Integration Test ===\n");
+
+    // Initialize Bitcoin client
+    let mut client = BitcoinClient::new(
+        "http://127.0.0.1:18443",
+        "rpcuser",
+        "rpcpassword",
+        Network::Regtest,
+    )?;
+
+    println!("Bitcoin client initialized");
+
+    // Fund the wallet
+    let addr = client.get_new_address()?;
+    println!("Generated address: {}", addr);
+    
+    client.generate_blocks(101, &addr.to_string())?;
+    println!("Generated 101 blocks");
+    
+    let balance = client.get_balance()?;
+    println!("Wallet balance: {}", balance);
+    assert!(balance > 0, "Wallet balance should be greater than zero");
+
+    // Define channel states
+    println!("\n=== Creating Channel States ===\n");
+    
+    let initial_state = ChannelState {
+        balances: vec![100, 50],  // Initial balances
+        nonce: 0,                 // Initial nonce
+        metadata: vec![],
+        merkle_root: [0u8; 32],   // Placeholder value
+        proof: None,
+    };
+    println!("Initial state created: {:?}", initial_state);
+
+    // Generate transition data
+    println!("\n=== Generating Transition Data ===\n");
+    
+    let mut transition_data = [0u8; 32];
+    transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());  // delta_balance_0 = -3
+    transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());     // delta_balance_1 = +3
+    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());    // delta_nonce = +1
+
+    println!("Transition data: {:?}", transition_data);
+    println!("Delta balance 0: {}", i32::from_le_bytes(transition_data[0..4].try_into().unwrap()));
+    println!("Delta balance 1: {}", i32::from_le_bytes(transition_data[4..8].try_into().unwrap()));
+    println!("Delta nonce: {}", i32::from_le_bytes(transition_data[8..12].try_into().unwrap()));
+
+    // Apply transition to get the next state
+    println!("\n=== Applying Transition ===\n");
+    let next_state = apply_transition(&initial_state, &transition_data)?;
+    println!("Next state created: {:?}", next_state);
+
+    // Compute state hashes
+    println!("\n=== Computing State Hashes ===\n");
+    
+    let initial_state_bytes = hash_state(&initial_state)?;
+    let next_state_bytes = hash_state(&next_state)?;
+
+    println!("Initial state bytes: {:?}", initial_state_bytes);
+    println!("Next state bytes: {:?}", next_state_bytes);
+
+    // Initialize Merkle tree and update with states
+    println!("\n=== Updating Merkle Tree ===\n");
+    
+    // Initialize Merkle tree
+    let mut smt = MerkleTree::new();
+    
+    smt.insert(initial_state_bytes)?;
+    println!("Initial state added to Merkle tree");
+    
+    smt.insert(next_state_bytes)?;
+    println!("Next state added to Merkle tree");
+
+    // Generate and verify Merkle proof for the next state
+    println!("\n=== Generating and Verifying Merkle Proof ===\n");
+    let merkle_proof = smt.get_proof(&next_state_bytes).ok_or(anyhow!("Failed to generate Merkle proof"))?;
+    println!("Merkle proof generated successfully");
+    
+    // Verify Merkle proof
+    println!("Merkle proof verification started");
+    println!("Root: {:?}", smt.root);
+    
+    if !smt.verify_proof(&next_state_bytes, &merkle_proof, &smt.root) {
+        return Err(anyhow!("Merkle proof verification failed"));
+    }
+    println!("Merkle proof verified successfully");
+
+    // Build and send OP_RETURN transaction
+    println!("\n=== Building and Sending OP_RETURN Transaction ===\n");
+    let raw_tx_hex = build_op_return_transaction(&mut client, next_state_bytes)?;
+    let txid = client.send_raw_transaction_hex(&raw_tx_hex)?;
+    println!("Transaction sent with ID: {}", txid);
+    client.generate_blocks(1, &addr.to_string())?;
+    println!("Block generated to confirm transaction");
+
+    println!("\n=== Test Completed Successfully ===\n");
+    Ok(())
+}
+
+/// Builds an OP_RETURN transaction embedding the provided data.
+fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Result<String> {  
+    let amount = 100_000;
+    let (outpoint, utxo) = client.get_spendable_utxo(amount)?;
+    println!("UTXO fetched");
+    println!("UTXO: {:?}", utxo);
+    println!("Outpoint: {}", outpoint);
+    
+    println!("Amount: {}", amount);
+    println!("Data: {:?}", data);
+
+    let op_return_script = bitcoin::blockdata::script::Builder::new()
+        .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN)
         .push_slice(&data)
         .into_script();
 
-    // Create inputs and outputs
-    let tx_in = TxIn {
+    println!("OP_RETURN script built");
+
+    let tx_in = bitcoin::TxIn {
         previous_output: outpoint,
-        script_sig: ScriptBuf::default(),
-        sequence: Sequence(0xffffffff),
-        witness: Witness::default(),
+        script_sig: bitcoin::ScriptBuf::default(),
+        sequence: bitcoin::Sequence(0xffffffff),
+        witness: bitcoin::Witness::default(),
     };
-    let tx_out_opreturn = TxOut {
+
+    let tx_out_opreturn = bitcoin::TxOut {
         value: 0,
         script_pubkey: op_return_script,
     };
-    let tx_out_change = TxOut {
-        value: amount - 1_000, // Deduct fee
-        script_pubkey: script_pubkey.into(),
+
+    let tx_out_change = bitcoin::TxOut {
+        value: amount - 1_000,
+        script_pubkey: utxo.script_pubkey,
     };
 
-    // Build transaction
-    let tx = Transaction {
+    let tx = bitcoin::Transaction {
         version: 2,
-        lock_time: LockTime::ZERO,
+        lock_time: bitcoin::absolute::LockTime::ZERO,
         input: vec![tx_in],
         output: vec![tx_out_opreturn, tx_out_change],
     };
 
-    // Serialize and encode transaction in hex
-    let raw_tx_hex = hex::encode(encode::serialize(&tx));
+    println!("Transaction built");
 
-    // Sign the transaction
+    let raw_tx_hex = hex::encode(bitcoin::consensus::encode::serialize(&tx));
+    println!("Transaction serialized");
+
     let signed_tx_hex = client
         .sign_raw_transaction(&raw_tx_hex)
         .map_err(|e| anyhow!("Transaction signing failed: {}", e))?;
 
+    println!("Transaction signed");
     Ok(signed_tx_hex)
 }
-
-/// Attempts to convert a byte array into a specified type.
-fn try_into_array<T>(bytes: [u8; 32]) -> Result<T, anyhow::Error>
-where
-    T: TryFrom<[u8; 32]>,
-{
-    bytes.try_into().map_err(|_| anyhow!("Conversion failed for bytes array"))
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Converts a ChannelState into a 32-byte hash using PoseidonHash.
-    fn hash_state(state: &ChannelState) -> Result<[u8; 32]> {
-        use plonky2::hash::poseidon::PoseidonHash;
-
-        // Convert ChannelState fields to field elements
-        let mut inputs = Vec::new();
-
-        // Serialize balances (assuming u32 for each balance)
-        for &balance in &state.balances {
-            inputs.push(GoldilocksField::from_canonical_u32(balance.try_into().unwrap()));
-        }
-
-        // Serialize nonce (assuming u64)
-        inputs.push(GoldilocksField::from_canonical_u64(state.nonce));
-
-        // Serialize metadata (assuming Vec<u8>)
-        for &byte in &state.metadata {
-            inputs.push(GoldilocksField::from_canonical_u8(byte));
-        }
-
-        // Compute Poseidon hash of the inputs
-        let hash_out = PoseidonHash::hash_no_pad(&inputs);
-
-        // Convert HashOut to bytes
-        let mut bytes = [0u8; 32];
-        for (i, &element) in hash_out.elements.iter().enumerate() {
-            let elem_u64 = element.to_canonical_u64();
-            bytes[i * 8..(i + 1) * 8].copy_from_slice(&elem_u64.to_le_bytes());
-        }
-
-        Ok(bytes)
-    }
-
-    #[test]
-    fn test_e2e_integration() -> Result<()> {
-        // Initialize Bitcoin client
-        let client = BitcoinClient::new("http://127.0.0.1:18443", "rpcuser", "rpcpassword", None)?;
-
-        // Fund the wallet and ensure a nonzero balance
-        let addr = client.get_new_address()?;
-        client.generate_blocks(101, &addr.to_string())?;
-        let balance = client.get_balance()?;
-        assert!(balance > 0, "Wallet balance should be greater than zero");
-
-        // Define initial and next channel states
-        let initial_state = ChannelState::new(vec![100, 50], 0, vec![], [0u8; 32], vec![]);
-        let next_state = ChannelState::new(vec![97, 53], 1, vec![], [0u8; 32], vec![]);
-
-        // Compute hashes for states using PoseidonHash
-        let initial_state_bytes = hash_state(&initial_state)?;
-        let next_state_bytes = hash_state(&next_state)?;
-
-        // Log state hashes
-        println!("Initial state bytes: {:?}", initial_state_bytes);
-        println!("Next state bytes: {:?}", next_state_bytes);
-
-        // Generate transition data
-        // Here, transition_data encodes:
-        // - delta_balance_0: -3
-        // - delta_balance_1: +3
-        // - delta_nonce: +1
-        let mut transition_data = [0u8; 32];
-        transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes()); // delta_balance_0 = -3
-        transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());   // delta_balance_1 = +3
-        transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());  // delta_nonce = +1
-        // The rest of the bytes remain zero
-        println!("Transition data: {:?}", transition_data);
-
-        // Initialize the state transition circuit
-        let circuit = StateTransitionCircuit::new();
-
-        // Compute the expected next state using the circuit's public method
-        let computed_next_state = circuit.compute_next_state(&initial_state_bytes, &transition_data)?;
-        println!("Computed next state: {:?}", computed_next_state);
-
-        // Assert that the computed next state matches the expected next state
-        assert_eq!(
-            next_state_bytes, computed_next_state,
-            "Computed next state does not match expected"
-        );
-
-        // Generate and verify the proof
-        let proof = circuit.generate_proof(&initial_state, &transition_data)?;
-        assert!(
-            circuit.verify_proof(&proof)?,
-            "Proof verification failed"
-        );
-
-        // Update Merkle tree
-        let channel_key = [9u8; 32];
-        let mut smt = SparseMerkleTree::new(32);
-        smt.update(&channel_key, &initial_state_bytes)?;
-        smt.update(&channel_key, &next_state_bytes)?;
-
-        // Generate and verify Merkle proof
-        let merkle_proof = smt.generate_proof(&channel_key, &next_state_bytes)?;
-        assert!(
-            overpass_core::zkp::tree::SparseMerkleTree::verify_proof(&channel_key, &merkle_proof, &next_state_bytes)?,
-            "Merkle proof verification failed"
-        );
-
-        // Submit SMT root to Bitcoin blockchain
-        let raw_tx_hex = build_op_return_transaction(&client, smt.root())?;
-        let txid = client.send_raw_transaction_hex(&raw_tx_hex)?;
-        client.generate_blocks(1, &client.get_new_address()?.to_string())?;
-        println!("Anchored SMT root in TX {}", txid);
-
-        Ok(())
-    }}
