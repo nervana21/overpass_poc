@@ -73,7 +73,7 @@ The test will log the following:
 	1.	Bitcoin Initialization:
 	•	Generates a Bitcoin address and 101 blocks for the test environment.
 	•	Outputs wallet balance.
-#### Example:
+#### Example::
 
 Bitcoin client initialized
 Generated address: bcrt1q2jaj9tdanu85m269ym27qn9e38va7ljdmg08kl
