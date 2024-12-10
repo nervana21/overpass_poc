@@ -10,7 +10,7 @@ This repository includes a comprehensive end-to-end (E2E) test to verify the fun
 	•	Updating Sparse Merkle Trees (SMTs) for wallet and channel state management.
 	•	Verification of Merkle proofs for channel state consistency.
 	•	Secure anchoring of state to Bitcoin using an OP_RETURN transaction.
-
+ 
 ## Requirements
 
 ### Before running the test, ensure the following dependencies are installed:

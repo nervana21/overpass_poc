@@ -70,7 +70,7 @@ cd overpass_wasm && wasm-pack build
 # Start development environment
 npm run dev
 ```
-### In a new terminal window:
+### In a new terminal window:≠
 ```
 chmod +x setup.sh
 ./setup.sh
