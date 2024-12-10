@@ -27,30 +27,45 @@ This repository includes a comprehensive end-to-end (E2E) test to verify the fun
 
 1. Clone the Repository
 
-git clone https://github.com/<your-repo>/overpass-e2e-test.git
-cd overpass-e2e-test
+Dowload the repository to your local machine
 
-2. Build the Project
+
+2. enter the poc directory
+
+```
+cd /overpass_poc/overpass_core
+```
+
+3. Build the Project
 
 Ensure the project builds without errors:
 
+```
 cargo build
+```
 
-3. Start a Bitcoin Regtest Node
+4. Start a Bitcoin Regtest Node
 
 If you don’t already have a regtest node running, start one:
 
+```
 bitcoind -regtest -daemon
+```
 
 ### Generate initial blocks to set up the environment:
 
+```
 bitcoin-cli -regtest generate 101
+```
 
-4. Run the Test
+5. Run the Test
 
 ### Execute the integration test using cargo:
 
+```
+
 cargo test --test e2e_integration
+```
 
 #### Expected Output
 
