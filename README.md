@@ -72,7 +72,9 @@ The test will log the following:
 	1.	Bitcoin Initialization:
 	•	Generates a Bitcoin address and 101 blocks for the test environment.
 	•	Outputs wallet balance.
+
 #### Example::
+
 ```
 Bitcoin client initialized
 Generated address: bcrt1q2jaj9tdanu85m269ym27qn9e38va7ljdmg08kl
@@ -80,38 +82,43 @@ Generated 101 blocks
 Wallet balance: 617499987108
 ```
 
-	2.	Channel State Creation:
-	•	Creates an initial channel state with balances, metadata, and an SMT root.
-	•	Example:
+2.	Channel State Creation:
+•	Creates an initial channel state with balances, metadata, and an SMT root.
+•	Example:
+
 ```
 Initial state created: ChannelState { balances: [100, 50], nonce: 0, metadata: [], merkle_root: [...] }
 ```
 
-	3.	State Transition:
-	•	Logs balance deltas, nonce updates, and the resulting hashed state.
-	•	Example:
+3.	State Transition:
+•	Logs balance deltas, nonce updates, and the resulting hashed state.
+•	Example:
+
 ```
 Delta balance 0: -3
 Delta balance 1: 3
 Delta nonce: 1
 ```
 
-	4.	Merkle Tree Updates:
-	•	Updates and verifies the Sparse Merkle Tree with the new state.
-	5.	OP_RETURN Transaction:
-	•	Creates and broadcasts an OP_RETURN transaction to anchor the state on Bitcoin.
-	•	Example:
+4.	Merkle Tree Updates:
+•	Updates and verifies the Sparse Merkle Tree with the new state.
+5.	OP_RETURN Transaction:
+•	Creates and broadcasts an OP_RETURN transaction to anchor the state on Bitcoin.
+•	Example:
+
 ```
 Transaction sent with ID: c2a7098651e661eee11718265e748fe6032a2433e1d10eae00ad9625391e0935
 ```
 
-	6.	Test Completion:
-	•	Confirms that all operations completed successfully.
-	•	Example:
+6.	Test Completion:
+•	Confirms that all operations completed successfully.
+•	Example:
+
 ```
 Test completed successfully
 test result: ok. 1 passed; 0 failed; finished in 1.08s
 ```
+
 Understanding the Code
 
 The test script includes the following key components:
@@ -141,6 +148,7 @@ bitcoin-cli -regtest generate 10
 
 	3.	Compilation Errors:
 	•	Ensure all dependencies are installed. Run:
+	
 ```
 cargo update
 ```
