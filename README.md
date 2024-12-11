@@ -83,7 +83,9 @@ bitcoin-cli -regtest generatetoaddress 101 <address>
 ### 10. Run the Test
 Execute the integration test using cargo:
 ```
-cargo test ./tests/e2e_integration_test
+ # From your project root (cd ./overpass_poc/overpass_core/)    
+cargo test --test e2e_integration_test -- --nocapture  # The --nocapture flag shows println outputs
+
 ```
 
 ## Expected Output
