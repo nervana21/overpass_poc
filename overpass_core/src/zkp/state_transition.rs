@@ -20,7 +20,6 @@ use plonky2::{
 use crate::zkp::channel::ChannelState;
 use plonky2_field::types::{Field, PrimeField64};
 use std::collections::HashMap;
-use hex; // Ensure this is used appropriately
 
 
 /// Type alias for Poseidon configuration
@@ -312,11 +311,7 @@ fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) ->
             .ok_or_else(|| anyhow!("Nonce underflow"))?
     };
 
-    // Ensure balances don't go negative
-    if new_balance_0 < 0 || new_balance_1 < 0 {
-        return Err(anyhow!("Balances cannot be negative"));
-    }
-
+ 
     // Create the new state
     let mut new_state = ChannelState {
         balances: vec![new_balance_0 as u64, new_balance_1 as u64],

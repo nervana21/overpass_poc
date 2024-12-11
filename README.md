@@ -83,7 +83,7 @@ bitcoin-cli -regtest generatetoaddress 101 <address>
 ### 10. Run the Test
 Execute the integration test using cargo:
 ```
-cargo test --test e2e_integration
+cargo test ./tests/e2e_integration_test
 ```
 
 ## Expected Output

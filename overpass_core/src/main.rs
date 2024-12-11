@@ -2,25 +2,28 @@ use sha2::Sha512;
 use overpass_core::zkp::pedersen_parameters::PedersenParameters;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use sha2::Digest;
-use curve25519_dalek::ristretto::CompressedRistretto;
 
 fn initialize_pedersen_parameters() -> PedersenParameters {
     // Create a deterministic hash-to-curve implementation
-    let hash_to_curve = |input: &[u8]| CompressedRistretto::from_slice(input).unwrap().decompress().unwrap();
+    let hash_to_curve = |input: &[u8]| {
+        let mut hash_bytes = [0u8; 64];
+        hash_bytes.copy_from_slice(&input[..64]);
+        RistrettoPoint::from_uniform_bytes(&hash_bytes)
+    };
     
     // Generate points g and h by hashing distinct seeds
     let g = {
         let mut hasher = Sha512::new();
         hasher.update(b"generator_g");
         let hash = hasher.finalize();
-        hash_to_curve(&hash[..32])
+        hash_to_curve(&hash)
     };
 
     let h = {
         let mut hasher = Sha512::new();
         hasher.update(b"generator_h");
         let hash = hasher.finalize();
-        hash_to_curve(&hash[..32])
+        hash_to_curve(&hash)
     };
 
     PedersenParameters::new(g, h)

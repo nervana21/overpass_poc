@@ -201,11 +201,7 @@ impl BitcoinLockState {
             return Ok(false);
         }
 
-        if let Some(htlc) = &self.htlc_params {
-            if let Some(next_htlc) = &next_state.htlc_params {
-                return Ok(false);
-            }
-        }
+      
 
         if next_state.nonce <= self.nonce {
             return Ok(false);
