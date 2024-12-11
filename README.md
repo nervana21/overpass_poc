@@ -35,7 +35,7 @@ Download the repository to your local machine
 
 ### 2. Enter the PoC Directory
 ```
-cd ./overpass_poc/overpass_core
+cd overpass_core
 ```
 
 ### 3. Build the Project
