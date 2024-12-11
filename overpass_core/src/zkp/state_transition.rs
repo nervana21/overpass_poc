@@ -22,12 +22,6 @@ use plonky2_field::types::{Field, PrimeField64};
 use std::collections::HashMap;
 use hex; // Ensure this is used appropriately
 
-// Removed unused imports
-// use crate::zkp::compressed_transaction::Bytes32;
-// use crate::zkp::helpers::Bytes32 as OtherBytes32;
-// use crate::zkp::state_proof::Bytes32 as OtherOtherBytes32;
-// use sha2::Digest;
-// use sha2::Sha256;
 
 /// Type alias for Poseidon configuration
 type PoseidonConfig = PoseidonGoldilocksConfig;

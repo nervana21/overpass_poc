@@ -33,7 +33,7 @@ Dowload the repository to your local machine
 2. enter the poc directory
 
 ```
-cd /overpass_poc/overpass_core
+cd ./overpass_poc/overpass_core
 ```
 
 3. Build the Project
@@ -141,7 +141,7 @@ bitcoin-cli -regtest generate 10
 
 	3.	Compilation Errors:
 	•	Ensure all dependencies are installed. Run:
-
+```
 cargo update
-
+```
 
