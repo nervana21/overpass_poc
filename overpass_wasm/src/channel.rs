@@ -1,8 +1,8 @@
 // src/channel.rs
 
-use wasm_bindgen::prelude::*;
-use sha2::{Digest, Sha256};
 use crate::types::dag_boc::{StateUpdate, StateUpdateWrapper};
+use sha2::{Digest, Sha256};
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct Channel {
@@ -51,11 +51,13 @@ impl ChannelWrapper {
     #[wasm_bindgen]
     pub fn update_state(&mut self, update: &StateUpdateWrapper) -> Result<(), JsValue> {
         if !update.verify() {
-            return Err(JsValue::from_str("Invalid state update: verification failed"));
+            return Err(JsValue::from_str(
+                "Invalid state update: verification failed",
+            ));
         }
 
         let state_update = update.get_inner().clone();
-        
+
         if self.0.has_update(&state_update) {
             return Err(JsValue::from_str("State update already exists"));
         }

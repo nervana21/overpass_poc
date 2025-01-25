@@ -1,8 +1,9 @@
 // src/zkp/state_transition.rs
 
+use crate::zkp::channel::ChannelState;
 use crate::zkp::tree::{MerkleProof, MerkleTree};
-use plonky2::plonk::config::Hasher;
 use anyhow::{anyhow, Context, Result};
+use plonky2::plonk::config::Hasher;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     hash::{
@@ -17,10 +18,8 @@ use plonky2::{
         proof::ProofWithPublicInputs,
     },
 };
-use crate::zkp::channel::ChannelState;
 use plonky2_field::types::{Field, PrimeField64};
 use std::collections::HashMap;
-
 
 /// Type alias for Poseidon configuration
 type PoseidonConfig = PoseidonGoldilocksConfig;
@@ -63,7 +62,10 @@ impl StateTransitionCircuit {
 
         // Enforce that the computed hash matches the declared next state.
         for i in 0..4 {
-            builder.connect(computed_next_state.elements[i], next_state_target.elements[i]);
+            builder.connect(
+                computed_next_state.elements[i],
+                next_state_target.elements[i],
+            );
         }
 
         // Finalize the circuit.
@@ -91,18 +93,17 @@ impl StateTransitionCircuit {
             .context("Failed to apply transition to initial state")?;
 
         // Serialize and hash the initial and next states
-        let initial_state_bytes = hash_state(&initial_state)
-            .context("Failed to hash initial state")?;
-        let next_state_bytes = hash_state(&next_state)
-            .context("Failed to hash next state")?;
+        let initial_state_bytes =
+            hash_state(&initial_state).context("Failed to hash initial state")?;
+        let next_state_bytes = hash_state(&next_state).context("Failed to hash next state")?;
 
         // Convert byte arrays to HashOut targets.
-        let initial_hash = Self::to_hash_out(initial_state_bytes)
-            .context("Failed to convert initial hash")?;
+        let initial_hash =
+            Self::to_hash_out(initial_state_bytes).context("Failed to convert initial hash")?;
         let transition_hash = Self::to_hash_out(*transition_data)
             .context("Failed to convert transition data hash")?;
-        let next_hash = Self::to_hash_out(next_state_bytes)
-            .context("Failed to convert next hash")?;
+        let next_hash =
+            Self::to_hash_out(next_state_bytes).context("Failed to convert next hash")?;
 
         // Assign hashes to their respective targets.
         pw.set_hash_target(self.current_state_target, initial_hash)
@@ -113,7 +114,9 @@ impl StateTransitionCircuit {
             .context("Failed to set next state hash")?;
 
         // Generate and return the proof.
-        self.circuit_data.prove(pw).context("Proof generation failed")
+        self.circuit_data
+            .prove(pw)
+            .context("Proof generation failed")
     }
 
     /// Verifies a zero-knowledge proof for a state transition.
@@ -135,7 +138,9 @@ impl StateTransitionCircuit {
                 let bytes: [u8; 8] = chunk
                     .try_into()
                     .map_err(|_| anyhow!("Invalid byte length for field element"))?;
-                Ok(GoldilocksField::from_canonical_u64(u64::from_le_bytes(bytes)))
+                Ok(GoldilocksField::from_canonical_u64(u64::from_le_bytes(
+                    bytes,
+                )))
             })
             .collect::<Result<Vec<_>, anyhow::Error>>()?;
 
@@ -176,10 +181,10 @@ impl StateTransitionCircuit {
         current_state: [u8; 32],
         transition_data: [u8; 32],
     ) -> Result<[u8; 32]> {
-        let current_hash = Self::to_hash_out(current_state)
-            .context("Failed to convert current state hash")?;
-        let transition_hash = Self::to_hash_out(transition_data)
-            .context("Failed to convert transition data hash")?;
+        let current_hash =
+            Self::to_hash_out(current_state).context("Failed to convert current state hash")?;
+        let transition_hash =
+            Self::to_hash_out(transition_data).context("Failed to convert transition data hash")?;
         let next_hash = Self::compute_poseidon_hash(&current_hash, &transition_hash);
         Self::hash_out_to_bytes(&next_hash).context("Failed to convert next hash to bytes")
     }
@@ -187,7 +192,9 @@ impl StateTransitionCircuit {
     /// Generates a Merkle proof for a channel's transaction history.
     pub fn generate_merkle_proof(&self, channel_id: [u8; 32]) -> Option<MerkleProof> {
         self.channel_roots.get(&channel_id).and_then(|root| {
-            self.merkle_tree.get_proof(root).map(|proof| MerkleProof { path: proof })
+            self.merkle_tree
+                .get_proof(root)
+                .map(|proof| MerkleProof { path: proof })
         })
     }
 
@@ -258,7 +265,10 @@ fn hash_state(state: &ChannelState) -> Result<[u8; 32]> {
 }
 
 /// Applies transition data to the initial state to produce the next state.
-fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) -> Result<ChannelState> {
+fn apply_transition(
+    initial_state: &ChannelState,
+    transition_data: &[u8; 32],
+) -> Result<ChannelState> {
     // Example transition logic:
     // - Update balances
     // - Increment nonce
@@ -311,7 +321,6 @@ fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) ->
             .ok_or_else(|| anyhow!("Nonce underflow"))?
     };
 
- 
     // Create the new state
     let mut new_state = ChannelState {
         balances: vec![new_balance_0 as u64, new_balance_1 as u64],
@@ -322,8 +331,7 @@ fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) ->
     };
 
     // Compute the new merkle_root based on the updated state
-    new_state.merkle_root = hash_state(&new_state)
-        .context("Failed to compute new merkle_root")?;
+    new_state.merkle_root = hash_state(&new_state).context("Failed to compute new merkle_root")?;
 
     Ok(new_state)
 }
@@ -332,8 +340,8 @@ fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) ->
 mod tests {
     use super::*;
     use anyhow::Result;
-    use bitcoincore_rpc::{Auth, Client, RpcApi};
     use bitcoin::Network;
+    use bitcoincore_rpc::{Auth, Client, RpcApi};
 
     #[test]
     fn test_e2e_integration() -> Result<()> {
@@ -342,8 +350,9 @@ mod tests {
         // Initialize Bitcoin client
         let client = Client::new(
             "http://localhost:18332",
-            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string())
-        ).context("Failed to create Bitcoin client")?;
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string()),
+        )
+        .context("Failed to create Bitcoin client")?;
 
         println!("Bitcoin client initialized");
 
@@ -364,16 +373,19 @@ mod tests {
             .get_balance(None, None)
             .context("Failed to get wallet balance")?;
         println!("Wallet balance: {}", balance);
-        assert!(balance.to_sat() > 0, "Wallet balance should be greater than zero");
+        assert!(
+            balance.to_sat() > 0,
+            "Wallet balance should be greater than zero"
+        );
 
         // Define channel states
         println!("\n=== Creating Channel States ===\n");
 
         let initial_state = ChannelState {
-            balances: vec![100, 50],  // Initial balances
-            nonce: 0,                 // Initial nonce
+            balances: vec![100, 50], // Initial balances
+            nonce: 0,                // Initial nonce
             metadata: Vec::<u8>::new(),
-            merkle_root: [0u8; 32],   // Placeholder value
+            merkle_root: [0u8; 32], // Placeholder value
             proof: None,
         };
         println!("Initial state created: {:?}", initial_state);
@@ -382,14 +394,23 @@ mod tests {
         println!("\n=== Generating Transition Data ===\n");
 
         let mut transition_data = [0u8; 32];
-        transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());  // delta_balance_0 = -3
-        transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());     // delta_balance_1 = +3
-        transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());    // delta_nonce = +1
+        transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes()); // delta_balance_0 = -3
+        transition_data[4..8].copy_from_slice(&3i32.to_le_bytes()); // delta_balance_1 = +3
+        transition_data[8..12].copy_from_slice(&1i32.to_le_bytes()); // delta_nonce = +1
 
         println!("Transition data: {:?}", transition_data);
-        println!("Delta balance 0: {}", i32::from_le_bytes(transition_data[0..4].try_into().unwrap()));
-        println!("Delta balance 1: {}", i32::from_le_bytes(transition_data[4..8].try_into().unwrap()));
-        println!("Delta nonce: {}", i32::from_le_bytes(transition_data[8..12].try_into().unwrap()));
+        println!(
+            "Delta balance 0: {}",
+            i32::from_le_bytes(transition_data[0..4].try_into().unwrap())
+        );
+        println!(
+            "Delta balance 1: {}",
+            i32::from_le_bytes(transition_data[4..8].try_into().unwrap())
+        );
+        println!(
+            "Delta nonce: {}",
+            i32::from_le_bytes(transition_data[8..12].try_into().unwrap())
+        );
 
         // Apply transition to get the next state
         println!("\n=== Applying Transition ===\n");
@@ -399,10 +420,9 @@ mod tests {
         // Compute state hashes
         println!("\n=== Computing State Hashes ===\n");
 
-        let initial_state_bytes = hash_state(&initial_state)
-            .context("Failed to hash initial state")?;
-        let next_state_bytes = hash_state(&next_state)
-            .context("Failed to hash next state")?;
+        let initial_state_bytes =
+            hash_state(&initial_state).context("Failed to hash initial state")?;
+        let next_state_bytes = hash_state(&next_state).context("Failed to hash next state")?;
 
         println!("Initial State Hash: {:?}", initial_state_bytes);
         println!("Next State Hash: {:?}", next_state_bytes);
@@ -421,7 +441,8 @@ mod tests {
 
         // Generate and verify Merkle proof for the next state
         println!("\n=== Generating and Verifying Merkle Proof ===\n");
-        let merkle_proof = smt.get_proof(&next_state_bytes)
+        let merkle_proof = smt
+            .get_proof(&next_state_bytes)
             .ok_or(anyhow!("Failed to generate Merkle proof"))?;
         println!("Merkle proof generated successfully");
 
@@ -449,25 +470,27 @@ mod tests {
     }
 
     /// Builds an OP_RETURN transaction embedding the provided data.
-    fn build_op_return_transaction(client: &Client, data: [u8; 32]) -> Result<String> {  
+    fn build_op_return_transaction(client: &Client, data: [u8; 32]) -> Result<String> {
         // Define a reasonable fee (e.g., 1,000 satoshis)
         let fee = 1_000;
 
         // List unspent outputs
-        let utxos = client.list_unspent(None, None, None, None, None)
+        let utxos = client
+            .list_unspent(None, None, None, None, None)
             .context("Failed to list unspent outputs")?;
-        
+
         // Select a UTXO that can cover the fee
-        let utxo = utxos.iter()
+        let utxo = utxos
+            .iter()
             .find(|utxo| utxo.amount.to_sat() >= fee)
             .ok_or_else(|| anyhow!("No suitable UTXO found"))?;
-            
+
         let outpoint = bitcoin::OutPoint::new(utxo.txid, utxo.vout);
-        
+
         println!("UTXO fetched");
         println!("UTXO: {:?}", utxo);
         println!("Outpoint: {}", outpoint);
-        
+
         println!("Fee: {}", fee);
         println!("Data: {:?}", data);
 
@@ -523,9 +546,9 @@ mod tests {
 
         // Convert Vec<u8> to hex string
         let signed_tx_hex = hex::encode(signed_tx_result.hex);
-        
+
         println!("Transaction signed");
-        
+
         // Send the raw transaction
         let txid = client.send_raw_transaction(signed_tx_hex.as_str())?;
         println!("Transaction sent with ID: {}", txid);

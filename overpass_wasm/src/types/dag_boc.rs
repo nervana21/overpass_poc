@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use wasm_bindgen::prelude::*;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use wasm_bindgen::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct StateUpdate {
@@ -45,7 +45,10 @@ impl StateUpdate {
         // Compute the hash
         let mut hasher = Sha256::new();
         hasher.update(&update.dag_cells);
-        update.roots.iter().for_each(|x| hasher.update(x.to_le_bytes()));
+        update
+            .roots
+            .iter()
+            .for_each(|x| hasher.update(x.to_le_bytes()));
         update.hash = hasher.finalize().to_vec();
 
         update
@@ -79,7 +82,9 @@ impl StateUpdate {
     pub fn verify(&self) -> bool {
         let mut hasher = Sha256::new();
         hasher.update(&self.dag_cells);
-        self.roots.iter().for_each(|x| hasher.update(x.to_le_bytes()));
+        self.roots
+            .iter()
+            .for_each(|x| hasher.update(x.to_le_bytes()));
         hasher.finalize().as_slice() == self.hash
     }
 }
@@ -105,7 +110,9 @@ impl StateUpdateWrapper {
         }
 
         if state_mapping.length() % 2 != 0 {
-            return Err(JsValue::from_str("State mapping must contain pairs of values"));
+            return Err(JsValue::from_str(
+                "State mapping must contain pairs of values",
+            ));
         }
 
         // Convert JS arrays to Rust vectors

@@ -98,11 +98,11 @@ mod tests {
     }
 }
 
+use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use chrono::Local;
 
 pub trait LogConfig {
     fn log_file(&self) -> &str;
@@ -121,9 +121,10 @@ impl FileLogger {
 
     /// Logs a message with a specified log level.
     pub fn log(&self, level: &str, message: &str) -> io::Result<()> {
-        let config = self.config.lock().map_err(|_| {
-            io::Error::new(io::ErrorKind::Other, "Failed to acquire lock")
-        })?;
+        let config = self
+            .config
+            .lock()
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to acquire lock"))?;
         let log_file = Path::new(config.log_file());
         if let Some(parent) = log_file.parent() {
             fs::create_dir_all(parent)?; // Ensure directory exists.

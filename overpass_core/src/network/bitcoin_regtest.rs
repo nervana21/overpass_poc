@@ -12,11 +12,8 @@ impl BitcoinRegtest {
     pub fn new() -> Self {
         let network = Network::Regtest;
         let client = BitcoinClient::new();
-        
-        Self {
-            network,
-            client,
-        }
+
+        Self { network, client }
     }
 
     pub fn create_htlc_parameters(
@@ -26,7 +23,8 @@ impl BitcoinRegtest {
         hash_lock: [u8; 32],
         timeout_height: u32,
     ) -> HTLCParameters {
-        self.client.create_htlc_parameters(amount, receiver, hash_lock, timeout_height)
+        self.client
+            .create_htlc_parameters(amount, receiver, hash_lock, timeout_height)
     }
 
     pub fn create_lock_state(
@@ -48,7 +46,7 @@ impl BitcoinRegtest {
             sequence,
             nonce,
             htlc_params,
-            stealth_address
+            stealth_address,
         )
     }
 
@@ -58,7 +56,8 @@ impl BitcoinRegtest {
         value: u64,
         pubkey_hash: [u8; 20],
     ) -> Result<bitcoin::Transaction, String> {
-        self.client.create_transaction(prev_script, value, pubkey_hash)
+        self.client
+            .create_transaction(prev_script, value, pubkey_hash)
     }
 
     pub async fn verify_htlc(

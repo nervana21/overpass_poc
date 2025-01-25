@@ -1,9 +1,9 @@
 // ./src/types/generate_keypair.rs
 
-use wasm_bindgen::prelude::*;
 use ed25519_dalek::SigningKey;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use wasm_bindgen::prelude::*;
 
 /// Generates an Ed25519 keypair and returns it as a tuple of public and private keys in Uint8Array format.
 #[wasm_bindgen]
@@ -38,6 +38,9 @@ mod tests {
         assert_eq!(private_key.len(), 32, "Private key must be 32 bytes");
 
         // Ensure keys are different
-        assert_ne!(public_key, private_key, "Public and private keys must not be identical");
+        assert_ne!(
+            public_key, private_key,
+            "Public and private keys must not be identical"
+        );
     }
 }

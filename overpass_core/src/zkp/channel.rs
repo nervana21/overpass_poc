@@ -1,13 +1,13 @@
 // src/zkp/channel.rs
 
-use plonky2_field::types::PrimeField64;
-use plonky2_field::types::Field;
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
 use crate::zkp::tree::{MerkleTree, MerkleTreeError};
-use plonky2_field::goldilocks_field::GoldilocksField;
-use plonky2::plonk::config::Hasher;
+use anyhow::{Context, Result};
 use plonky2::hash::poseidon::PoseidonHash;
+use plonky2::plonk::config::Hasher;
+use plonky2_field::goldilocks_field::GoldilocksField;
+use plonky2_field::types::Field;
+use plonky2_field::types::PrimeField64;
+use serde::{Deserialize, Serialize};
 
 /// Represents the state of a channel.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -19,20 +19,20 @@ pub struct ChannelState {
     pub proof: Option<Vec<u8>>,
 }
 
-
 impl ChannelState {
     /// Converts the ChannelState into a 32-byte hash using PoseidonHash.
     pub fn hash_state(&self) -> Result<[u8; 32]> {
         // Serialize the entire state using serde_json for consistency
-        let serialized = serde_json::to_vec(self)
-            .context("Failed to serialize channel state")?;
+        let serialized = serde_json::to_vec(self).context("Failed to serialize channel state")?;
 
         // Convert serialized bytes to field elements
         let mut inputs = Vec::new();
         for chunk in serialized.chunks(8) {
             let mut bytes = [0u8; 8];
             bytes[..chunk.len()].copy_from_slice(chunk);
-            inputs.push(GoldilocksField::from_canonical_u64(u64::from_le_bytes(bytes)));
+            inputs.push(GoldilocksField::from_canonical_u64(u64::from_le_bytes(
+                bytes,
+            )));
         }
 
         // Convert metadata bytes to field elements
@@ -105,7 +105,7 @@ impl ChannelState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zkp::tree::{MerkleTreeError, MerkleTree};
+    use crate::zkp::tree::{MerkleTree, MerkleTreeError};
 
     #[test]
     fn test_state_transition_with_smt() -> Result<(), MerkleTreeError> {

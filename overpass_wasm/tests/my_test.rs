@@ -1,5 +1,5 @@
-use wasm_bindgen_test::*;
 use overpass_wasm::{ChannelWrapper, StateUpdateWrapper};
+use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -21,14 +21,9 @@ async fn test_state_update() {
     let nonce = 1u64;
 
     // Create state update
-    let update = overpass_wasm::StateUpdateWrapper::new(
-        dag_cells,
-        references,
-        roots,
-        state_mapping,
-        nonce,
-    )
-    .expect("Failed to create state update");
+    let update =
+        overpass_wasm::StateUpdateWrapper::new(dag_cells, references, roots, state_mapping, nonce)
+            .expect("Failed to create state update");
 
     // Update state
     channel
@@ -36,7 +31,11 @@ async fn test_state_update() {
         .expect("State update should not fail");
 
     // Verify state
-    assert_eq!(channel.state_count(), 1, "State count should be 1 after update");
+    assert_eq!(
+        channel.state_count(),
+        1,
+        "State count should be 1 after update"
+    );
     assert!(
         channel.verify(),
         "Channel verification should succeed after valid state update"
@@ -55,13 +54,8 @@ fn test_invalid_state_update() {
     let nonce = 1u64;
 
     // Attempt to create an invalid state update and verify it fails
-    let update_result = overpass_wasm::StateUpdateWrapper::new(
-        dag_cells,
-        references,
-        roots,
-        state_mapping,
-        nonce,
-    );
+    let update_result =
+        overpass_wasm::StateUpdateWrapper::new(dag_cells, references, roots, state_mapping, nonce);
 
     assert!(
         update_result.is_err(),

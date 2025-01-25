@@ -1,14 +1,13 @@
 // src/zkp/mobile_optimized_storage.rs
-use std::num::NonZero;
 use crate::zkp::channel::ChannelState;
-use std::fmt;
 /// Local Storage Layer (Level 3)
 /// Hybrid hot/cold storage optimized for mobile devices.
-
 use crate::zkp::compressed_transaction::CompressedTransaction;
 use crate::zkp::helpers::Bytes32;
 use crate::zkp::state_proof::StateProof;
 use lru::LruCache;
+use std::fmt;
+use std::num::NonZero;
 
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -27,16 +26,16 @@ pub struct MobileOptimizedStorage {
     #[allow(dead_code)]
     active_channels: LruCache<Bytes32, ChannelState>,
     recent_transactions: LruCache<Bytes32, Vec<CompressedTransaction>>,
-    
+
     /// Cold storage (compressed historical data).
     transaction_history: HashMap<Bytes32, Vec<CompressedTransaction>>,
     #[allow(dead_code)]
     channel_roots: HashMap<Bytes32, Bytes32>,
-    
+
     /// Performance parameters.
     compression_threshold: usize, // Number of transactions before compression
     #[allow(dead_code)]
-    retention_period: u64,        // Retention period in seconds
+    retention_period: u64, // Retention period in seconds
 }
 impl MobileOptimizedStorage {
     /// Creates a new MobileOptimizedStorage instance.
@@ -50,7 +49,7 @@ impl MobileOptimizedStorage {
             retention_period,
         }
     }
-    
+
     /// Stores a transaction, possibly compressing history.
     pub fn store_transaction(
         &mut self,
@@ -61,9 +60,11 @@ impl MobileOptimizedStorage {
         metadata: serde_json::Value,
     ) -> Result<(), StorageError> {
         let timestamp = proof.timestamp;
-        let metadata_hash = sha256_hash(&serde_json::to_vec(&metadata).map_err(|e| StorageError::Other(e.to_string()))?);
+        let metadata_hash = sha256_hash(
+            &serde_json::to_vec(&metadata).map_err(|e| StorageError::Other(e.to_string()))?,
+        );
         let merkle_root = compute_merkle_root(&self.transaction_history, &channel_id);
-        
+
         let compressed_tx = CompressedTransaction {
             timestamp,
             old_commitment,
@@ -71,7 +72,7 @@ impl MobileOptimizedStorage {
             metadata_hash,
             merkle_root,
         };
-        
+
         // Add to recent transactions
         if let Some(txs) = self.recent_transactions.get_mut(&channel_id) {
             txs.push(compressed_tx.clone());
@@ -79,17 +80,18 @@ impl MobileOptimizedStorage {
                 self.compress_transactions(channel_id)?;
             }
         } else {
-            self.recent_transactions.put(channel_id, vec![compressed_tx.clone()]);
+            self.recent_transactions
+                .put(channel_id, vec![compressed_tx.clone()]);
         }
-        
+
         // Add to transaction history
         self.transaction_history
             .entry(channel_id)
             .or_insert_with(Vec::new)
             .push(compressed_tx);
-        
+
         Ok(())
-    }    
+    }
     /// Compresses transactions for a channel.
     fn compress_transactions(&mut self, channel_id: Bytes32) -> Result<(), StorageError> {
         if let Some(recent_txs) = self.recent_transactions.pop(&channel_id) {
@@ -130,7 +132,10 @@ fn serialize_metadata(txs: &[CompressedTransaction]) -> Vec<u8> {
 }
 
 /// Computes Merkle root from transaction history for a channel.
-fn compute_merkle_root(transaction_history: &HashMap<Bytes32, Vec<CompressedTransaction>>, channel_id: &Bytes32) -> [u8; 32] {
+fn compute_merkle_root(
+    transaction_history: &HashMap<Bytes32, Vec<CompressedTransaction>>,
+    channel_id: &Bytes32,
+) -> [u8; 32] {
     if let Some(txs) = transaction_history.get(channel_id) {
         let leaves: Vec<[u8; 32]> = txs.iter().map(|tx| tx.merkle_root).collect();
         compute_merkle_root_helper(leaves)

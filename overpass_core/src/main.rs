@@ -1,7 +1,7 @@
-use sha2::Sha512;
-use overpass_core::zkp::pedersen_parameters::PedersenParameters;
 use curve25519_dalek::ristretto::RistrettoPoint;
+use overpass_core::zkp::pedersen_parameters::PedersenParameters;
 use sha2::Digest;
+use sha2::Sha512;
 
 fn initialize_pedersen_parameters() -> PedersenParameters {
     // Create a deterministic hash-to-curve implementation
@@ -10,7 +10,7 @@ fn initialize_pedersen_parameters() -> PedersenParameters {
         hash_bytes.copy_from_slice(&input[..64]);
         RistrettoPoint::from_uniform_bytes(&hash_bytes)
     };
-    
+
     // Generate points g and h by hashing distinct seeds
     let g = {
         let mut hasher = Sha512::new();
@@ -30,7 +30,7 @@ fn initialize_pedersen_parameters() -> PedersenParameters {
 }
 fn main() {
     println!("Initializing Overpass Core...");
-    
+
     // Initialize Pedersen parameters
     let _pedersen_params = initialize_pedersen_parameters();
     println!("Pedersen parameters initialized");
@@ -59,10 +59,10 @@ mod tests {
     #[test]
     fn test_pedersen_parameters_initialization() {
         let params = initialize_pedersen_parameters();
-        
+
         // Parameters should be deterministic
         let params2 = initialize_pedersen_parameters();
-        
+
         assert_eq!(
             params.g.compress().to_bytes(),
             params2.g.compress().to_bytes()
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn test_pedersen_parameters_distinctness() {
         let params = initialize_pedersen_parameters();
-        
+
         // G and H points should be different
         assert_ne!(
             params.g.compress().to_bytes(),

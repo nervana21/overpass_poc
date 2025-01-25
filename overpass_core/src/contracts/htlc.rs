@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use sha2::{Sha256, Digest};
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Copy, Clone, PartialEq)]

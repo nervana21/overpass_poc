@@ -68,7 +68,10 @@ impl From<StateBOCCell> for Cell {
             cell_type: cell.cell_type,
             data: cell.data,
             references: cell.references.into_iter().map(|x| x as u64).collect(),
-            slice: cell.slice.map(|s| Slice { start: s[0] as u64, end: s[1] as u64 }),
+            slice: cell.slice.map(|s| Slice {
+                start: s[0] as u64,
+                end: s[1] as u64,
+            }),
             nonce: cell.nonce,
             balance: cell.balance,
         }

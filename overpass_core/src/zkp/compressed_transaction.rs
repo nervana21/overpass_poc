@@ -1,6 +1,6 @@
 // src/zkp/compressed_transaction.rs (continued)
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Type alias for bytes32.
 pub type Bytes32 = [u8; 32];

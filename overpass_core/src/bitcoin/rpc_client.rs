@@ -1,9 +1,8 @@
+use bitcoin::{Amount, Network, Transaction, Txid};
 use bitcoincore_rpc::RpcApi;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
-use serde::{Deserialize, Serialize};
-use bitcoin::{Transaction, Txid, Amount, Network};
-
 
 #[derive(Error, Debug)]
 pub enum RpcError {
@@ -82,7 +81,10 @@ impl BitcoinRpcClient {
                 bitcoincore_rpc::Auth::UserPass(config.user.clone(), config.password.clone()),
             )
             .map_err(RpcError::BitcoinCoreError)?;
-            Ok(Self { inner: Arc::new(client), config })
+            Ok(Self {
+                inner: Arc::new(client),
+                config,
+            })
         }
     }
 
@@ -95,7 +97,10 @@ impl BitcoinRpcClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            Ok(self.inner.get_block_count().map_err(RpcError::BitcoinCoreError)?)
+            Ok(self
+                .inner
+                .get_block_count()
+                .map_err(RpcError::BitcoinCoreError)?)
         }
     }
 
@@ -103,10 +108,13 @@ impl BitcoinRpcClient {
     pub async fn get_raw_transaction(&self, txid: &Txid) -> Result<Transaction, RpcError> {
         #[cfg(target_arch = "wasm32")]
         {
-            self.make_request("getrawtransaction", vec![
-                serde_json::Value::String(txid.to_string()),
-                serde_json::Value::Bool(true),
-            ])
+            self.make_request(
+                "getrawtransaction",
+                vec![
+                    serde_json::Value::String(txid.to_string()),
+                    serde_json::Value::Bool(true),
+                ],
+            )
             .await
         }
 
@@ -123,12 +131,18 @@ impl BitcoinRpcClient {
         #[cfg(target_arch = "wasm32")]
         {
             let tx_hex = bitcoin::consensus::encode::serialize_hex(tx);
-            self.make_request("sendrawtransaction", vec![serde_json::Value::String(tx_hex)]).await
+            self.make_request(
+                "sendrawtransaction",
+                vec![serde_json::Value::String(tx_hex)],
+            )
+            .await
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.inner.send_raw_transaction(tx).map_err(RpcError::BitcoinCoreError)
+            self.inner
+                .send_raw_transaction(tx)
+                .map_err(RpcError::BitcoinCoreError)
         }
     }
 
@@ -142,7 +156,9 @@ impl BitcoinRpcClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.inner.get_balance(None, None).map_err(RpcError::BitcoinCoreError)
+            self.inner
+                .get_balance(None, None)
+                .map_err(RpcError::BitcoinCoreError)
         }
     }
 
@@ -169,10 +185,10 @@ impl BitcoinRpcClient {
             .body(Some(&JsValue::from_str(&serde_json::to_string(&request)?)));
 
         let req = Request::new_with_str_and_init(&self.config.url, &opts)?;
-        req.headers()
-            .set("Content-Type", "application/json")?;
+        req.headers().set("Content-Type", "application/json")?;
 
-        let window = web_sys::window().ok_or_else(|| RpcError::NetworkError("No window object available".to_string()))?;
+        let window = web_sys::window()
+            .ok_or_else(|| RpcError::NetworkError("No window object available".to_string()))?;
         let resp_value = JsFuture::from(window.fetch_with_request(&req)).await?;
         let resp: Response = resp_value.dyn_into()?;
 
@@ -182,7 +198,9 @@ impl BitcoinRpcClient {
         match (rpc_response.result, rpc_response.error) {
             (Some(result), None) => Ok(result),
             (None, Some(error)) => Err(RpcError::JsonRpcError(error.message)),
-            _ => Err(RpcError::InvalidResponse("Invalid response structure".to_string())),
+            _ => Err(RpcError::InvalidResponse(
+                "Invalid response structure".to_string(),
+            )),
         }
     }
 }
@@ -207,7 +225,10 @@ mod tests {
         let client = BitcoinRpcClient::new(config).expect("Failed to create RPC client");
 
         // Test get_block_count
-        let block_count = client.get_block_count().await.expect("Failed to get block count");
+        let block_count = client
+            .get_block_count()
+            .await
+            .expect("Failed to get block count");
         assert!(block_count > 0, "Block count should be positive");
     }
 
@@ -229,7 +250,7 @@ mod tests {
         let balance = client.get_balance().await.expect("Failed to get balance");
         assert!(balance.to_sat() > 0, "Wallet balance should be positive");
     }
-    
+
     #[tokio::test]
     #[ignore]
     async fn test_send_raw_transaction() {
@@ -251,7 +272,18 @@ mod tests {
             .expect("Failed to get new address");
         let txid = client
             .inner
-            .send_to_address(&new_address.require_network(Network::Regtest).expect("Invalid network"), Amount::from_sat(1000), None, None, None, None, None, None)
+            .send_to_address(
+                &new_address
+                    .require_network(Network::Regtest)
+                    .expect("Invalid network"),
+                Amount::from_sat(1000),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .expect("Failed to send transaction");
 
         let tx = client
@@ -259,4 +291,5 @@ mod tests {
             .await
             .expect("Failed to get raw transaction");
         assert_eq!(tx.txid(), txid, "Transaction ID mismatch");
-    }}
+    }
+}

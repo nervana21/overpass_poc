@@ -1,8 +1,8 @@
 // src/zkp/pedersen_parameters.rs
 
 use anyhow::{anyhow, Result};
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
-use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Debug;
 
 /// Parameters for Pedersen commitments
@@ -55,7 +55,7 @@ impl PedersenParameters {
         let g = CompressedRistretto::from_slice(&g_bytes)?
             .decompress()
             .ok_or_else(|| anyhow!("Invalid g point bytes"))?;
-            
+
         let h = CompressedRistretto::from_slice(&h_bytes)?
             .decompress()
             .ok_or_else(|| anyhow!("Invalid h point bytes"))?;
@@ -71,8 +71,8 @@ impl PedersenParameters {
 impl Default for PedersenParameters {
     fn default() -> Self {
         // Use deterministic points derived from hashing for defaults
-        use sha2::{Sha512, Digest};
-        
+        use sha2::{Digest, Sha512};
+
         let g_bytes = {
             let mut hasher = Sha512::new();
             hasher.update(b"g_point");
@@ -87,7 +87,10 @@ impl Default for PedersenParameters {
             RistrettoPoint::from_uniform_bytes(&hash.into())
         };
 
-        Self { g: g_bytes, h: h_bytes }
+        Self {
+            g: g_bytes,
+            h: h_bytes,
+        }
     }
 }
 
@@ -122,15 +125,15 @@ mod tests {
     #[test]
     fn test_serialization() -> Result<()> {
         let params = PedersenParameters::default();
-        
+
         // Test direct serialization
         let serialized = serde_json::to_string(&params)?;
         let deserialized: PedersenParameters = serde_json::from_str(&serialized)?;
-        
+
         // Compare compressed bytes
         let (orig_g, orig_h) = params.to_compressed_bytes();
         let (new_g, new_h) = deserialized.to_compressed_bytes();
-        
+
         assert_eq!(orig_g.to_bytes(), new_g.to_bytes());
         assert_eq!(orig_h.to_bytes(), new_h.to_bytes());
 
@@ -141,12 +144,12 @@ mod tests {
     fn test_compressed_bytes() -> Result<()> {
         let params = PedersenParameters::default();
         let (g_compressed, h_compressed) = params.to_compressed_bytes();
-        
+
         let reconstructed = PedersenParameters::from_compressed_bytes(
             g_compressed.to_bytes(),
             h_compressed.to_bytes(),
         )?;
-        
+
         let (new_g, new_h) = reconstructed.to_compressed_bytes();
         assert_eq!(g_compressed.to_bytes(), new_g.to_bytes());
         assert_eq!(h_compressed.to_bytes(), new_h.to_bytes());
@@ -158,10 +161,10 @@ mod tests {
     fn test_default_deterministic() {
         let params1 = PedersenParameters::default();
         let params2 = PedersenParameters::default();
-        
+
         let (g1, h1) = params1.to_compressed_bytes();
         let (g2, h2) = params2.to_compressed_bytes();
-        
+
         assert_eq!(g1.to_bytes(), g2.to_bytes());
         assert_eq!(h1.to_bytes(), h2.to_bytes());
     }

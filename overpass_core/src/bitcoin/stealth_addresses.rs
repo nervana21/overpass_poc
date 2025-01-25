@@ -3,9 +3,9 @@
 use crate::bitcoin::bitcoin_types::StealthAddress;
 use crate::error::client_errors::{SystemError, SystemErrorType};
 
-use bitcoin::secp256k1::{All, Secp256k1, PublicKey, SecretKey, Scalar};
-use sha2::{Sha256, Digest};
-use rand::{thread_rng, rngs::ThreadRng};
+use bitcoin::secp256k1::{All, PublicKey, Scalar, Secp256k1, SecretKey};
+use rand::{rngs::ThreadRng, thread_rng};
+use sha2::{Digest, Sha256};
 
 /// A struct representing a stealth address manager.
 #[derive(Clone, Debug)]
@@ -76,8 +76,7 @@ impl StealthAddressGenerator {
         hasher.update(&shared_point.serialize());
 
         let hash = hasher.finalize();
-        SecretKey::from_slice(&hash).map_err(|e| {
-            SystemError::new(SystemErrorType::CryptoError, e.to_string())
-        })
+        SecretKey::from_slice(&hash)
+            .map_err(|e| SystemError::new(SystemErrorType::CryptoError, e.to_string()))
     }
 }

@@ -1,9 +1,9 @@
 // src/zkp/tree.rs
 
 use crate::zkp::helpers::Bytes32;
-use std::fmt;
-use std::error::Error;
 use sha2::{Digest, Sha256};
+use std::error::Error;
+use std::fmt;
 
 /// Represents errors that can occur in the Merkle Tree operations.
 #[derive(Debug)]
@@ -18,8 +18,12 @@ impl fmt::Display for MerkleTreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MerkleTreeError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
-            MerkleTreeError::ProofGenerationFailed(msg) => write!(f, "Proof generation failed: {}", msg),
-            MerkleTreeError::ProofVerificationFailed(msg) => write!(f, "Proof verification failed: {}", msg),
+            MerkleTreeError::ProofGenerationFailed(msg) => {
+                write!(f, "Proof generation failed: {}", msg)
+            }
+            MerkleTreeError::ProofVerificationFailed(msg) => {
+                write!(f, "Proof verification failed: {}", msg)
+            }
         }
     }
 }
@@ -55,7 +59,9 @@ impl MerkleTree {
             self.leaves[pos] = new_leaf;
             self.update_tree_on_update(pos)
         } else {
-            Err(MerkleTreeError::InvalidInput("Old leaf not found".to_string()))
+            Err(MerkleTreeError::InvalidInput(
+                "Old leaf not found".to_string(),
+            ))
         }
     }
 
@@ -65,7 +71,9 @@ impl MerkleTree {
             self.leaves.remove(pos);
             self.update_tree_on_delete(pos)
         } else {
-            Err(MerkleTreeError::InvalidInput("Leaf to delete not found".to_string()))
+            Err(MerkleTreeError::InvalidInput(
+                "Leaf to delete not found".to_string(),
+            ))
         }
     }
 
@@ -83,7 +91,10 @@ impl MerkleTree {
             if current_level.len() % 2 != 0 {
                 current_level.push(*current_level.last().unwrap());
             }
-            current_level = current_level.chunks(2).map(|pair| hash_pair(pair[0], pair[1])).collect();
+            current_level = current_level
+                .chunks(2)
+                .map(|pair| hash_pair(pair[0], pair[1]))
+                .collect();
             self.tree.push(current_level.clone());
         }
         self.root = current_level[0];
@@ -99,8 +110,8 @@ impl MerkleTree {
         }
 
         let mut pos = self.leaves.len() - 1;
-        while level < self.tree.len() || self.tree[level-1].len() > 1 {
-            let current_level = &self.tree[level-1];
+        while level < self.tree.len() || self.tree[level - 1].len() > 1 {
+            let current_level = &self.tree[level - 1];
             let mut next_level = if level < self.tree.len() {
                 self.tree[level].clone()
             } else {
@@ -109,7 +120,7 @@ impl MerkleTree {
 
             let parent_pos = pos / 2;
             let sibling_pos = if pos % 2 == 0 { pos + 1 } else { pos - 1 };
-            
+
             let hash = if sibling_pos < current_level.len() {
                 if pos % 2 == 0 {
                     hash_pair(current_level[pos], current_level[sibling_pos])
@@ -149,9 +160,13 @@ impl MerkleTree {
         let mut current_pos = pos;
         self.tree[0] = self.leaves.clone();
 
-        for level in 0..self.tree.len()-1 {
+        for level in 0..self.tree.len() - 1 {
             let current_level = &self.tree[level];
-            let sibling_pos = if current_pos % 2 == 0 { current_pos + 1 } else { current_pos - 1 };
+            let sibling_pos = if current_pos % 2 == 0 {
+                current_pos + 1
+            } else {
+                current_pos - 1
+            };
             let parent_pos = current_pos / 2;
 
             let hash = if sibling_pos < current_level.len() {
@@ -187,7 +202,7 @@ impl MerkleTree {
         let mut current_level = self.tree[0].clone();
         for level in 1..self.tree.len() {
             let mut next_level = Vec::new();
-            
+
             for chunk in current_level.chunks(2) {
                 if chunk.len() == 2 {
                     next_level.push(hash_pair(chunk[0], chunk[1]));
@@ -195,7 +210,7 @@ impl MerkleTree {
                     next_level.push(chunk[0]);
                 }
             }
-            
+
             self.tree[level] = next_level.clone();
             current_level = next_level;
         }
@@ -203,12 +218,13 @@ impl MerkleTree {
         // Update root
         self.root = self.tree.last().unwrap()[0];
         Ok(())
-    }    /// Generates a Merkle proof for a given leaf.
+    }
+    /// Generates a Merkle proof for a given leaf.
     pub fn get_proof(&self, leaf: &Bytes32) -> Option<Vec<Bytes32>> {
         let pos = self.leaves.iter().position(|x| x == leaf)?;
         let mut proof = Vec::new();
         let mut index = pos;
-        for level in &self.tree[..self.tree.len()-1] {
+        for level in &self.tree[..self.tree.len() - 1] {
             let sibling_index = if index % 2 == 0 { index + 1 } else { index - 1 };
             if sibling_index < level.len() {
                 proof.push(level[sibling_index]);
@@ -292,7 +308,8 @@ mod tests {
         // Delete leaf3
         merkle_tree.delete(leaf3)?;
 
-        let expected_after_delete_root = hash_pair(hash_pair(leaf1, new_leaf2), hash_pair(leaf4, leaf4));
+        let expected_after_delete_root =
+            hash_pair(hash_pair(leaf1, new_leaf2), hash_pair(leaf4, leaf4));
         assert_eq!(merkle_tree.root, expected_after_delete_root);
 
         Ok(())

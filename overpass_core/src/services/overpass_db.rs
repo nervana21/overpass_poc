@@ -1,6 +1,6 @@
 // ./src/services/overpass_db.rs
+use anyhow::{Context, Result};
 use sled::{self, Db};
-use anyhow::{Result, Context};
 
 /// Wrapper around the sled database for managing Overpass states and transactions.
 pub struct OverpassDB {
@@ -9,13 +9,13 @@ pub struct OverpassDB {
 
 impl OverpassDB {
     /// Creates a new instance of the OverpassDB.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `path` - Path to the database directory.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Result containing the OverpassDB instance or an error if the database cannot be opened.
     pub fn new(path: &str) -> Result<Self> {
         let db = sled::open(path).context("Failed to open database")?;
@@ -23,13 +23,13 @@ impl OverpassDB {
     }
 
     /// Retrieves a value from the database by key.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - The key to look up.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Some(Vec<u8>)` if the key exists.
     /// * `None` if the key does not exist or an error occurs.
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -40,14 +40,14 @@ impl OverpassDB {
     }
 
     /// Inserts a key-value pair into the database.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - The key to insert.
     /// * `value` - The value to associate with the key.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Some(Vec<u8>)` if the key previously existed, containing the old value.
     /// * `None` if the key is new.
     pub fn put(&self, key: &[u8], value: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -58,13 +58,13 @@ impl OverpassDB {
     }
 
     /// Deletes a key from the database.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - The key to delete.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Some(Vec<u8>)` if the key existed, containing the old value.
     /// * `None` if the key did not exist.
     pub fn delete(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -75,14 +75,14 @@ impl OverpassDB {
     }
 
     /// Retrieves a range of keys and their associated values.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `start` - The starting key (inclusive).
     /// * `end` - The ending key (exclusive).
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// An iterator over the keys and values within the range.
     pub fn scan(&self, start: &[u8], end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
         let mut result = Vec::new();
@@ -94,7 +94,7 @@ impl OverpassDB {
     }
 
     /// Flushes all changes to disk.
-    /// 
+    ///
     /// Ensures that all changes made to the database are durable.
     pub fn flush(&self) -> Result<()> {
         self.db.flush().context("Database flush failed")?;
@@ -137,22 +137,41 @@ mod tests {
         let get_result2 = db.get(b"key2")?;
         let get_result3 = db.get(b"key3")?;
 
-        assert_eq!(get_result1, Some(b"value1".to_vec()), "Incorrect value for key1");
-        assert_eq!(get_result2, Some(b"value2".to_vec()), "Incorrect value for key2");
+        assert_eq!(
+            get_result1,
+            Some(b"value1".to_vec()),
+            "Incorrect value for key1"
+        );
+        assert_eq!(
+            get_result2,
+            Some(b"value2".to_vec()),
+            "Incorrect value for key2"
+        );
         assert_eq!(get_result3, None, "Non-existent key should return None");
 
         // Test delete operation with error handling and value verification
         let delete_result = db.delete(b"key1")?;
-        assert_eq!(delete_result, Some(b"value1".to_vec()), "Incorrect deleted value");
+        assert_eq!(
+            delete_result,
+            Some(b"value1".to_vec()),
+            "Incorrect deleted value"
+        );
 
         // Verify deletion
         let get_after_delete = db.get(b"key1")?;
-        assert_eq!(get_after_delete, None, "Key should not exist after deletion");
+        assert_eq!(
+            get_after_delete, None,
+            "Key should not exist after deletion"
+        );
 
         // Test overwriting existing key
         db.put(b"key2", b"new_value2")?;
         let updated_value = db.get(b"key2")?;
-        assert_eq!(updated_value, Some(b"new_value2".to_vec()), "Value not updated correctly");
+        assert_eq!(
+            updated_value,
+            Some(b"new_value2".to_vec()),
+            "Value not updated correctly"
+        );
 
         teardown_db();
         Ok(())
@@ -180,13 +199,13 @@ mod tests {
     #[test]
     fn test_flush() -> Result<()> {
         let db = setup_db()?;
-        
+
         // Insert some data
         db.put(b"key", b"value")?;
-        
+
         // Flush changes to disk
         db.flush()?;
-        
+
         // Verify data persists
         let value = db.get(b"key")?;
         assert_eq!(value, Some(b"value".to_vec()));

@@ -1,16 +1,15 @@
 // src/zkp/helpers.rs
 
-use std::time::{UNIX_EPOCH, SystemTime};
-use sha2::{Sha256, Digest};
+use anyhow::Result;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use anyhow::Result;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::zkp::pedersen_parameters::PedersenParameters;
-
 
 /// Type alias for bytes32.
 pub type Bytes32 = [u8; 32];
@@ -146,11 +145,11 @@ pub fn verify_wallet_proof(
     }
     hasher.update(params.g.compress().as_bytes());
     hasher.update(params.h.compress().as_bytes());
-    
+
     let result = hasher.finalize();
     let mut expected = [0u8; 32];
     expected.copy_from_slice(&result);
-    
+
     proof.pi == expected
 }
 
@@ -171,11 +170,11 @@ pub fn verify_zk_proof(
     }
     hasher.update(params.g.compress().as_bytes());
     hasher.update(params.h.compress().as_bytes());
-    
+
     let result = hasher.finalize();
     let mut expected = [0u8; 32];
     expected.copy_from_slice(&result);
-    
+
     proof == &expected
 }
 
@@ -190,14 +189,14 @@ pub fn generate_state_proof(
     hasher.update(&old_commitment);
     hasher.update(&new_commitment);
     hasher.update(&merkle_root);
-    
+
     let timestamp = current_timestamp();
     hasher.update(&timestamp.to_le_bytes());
 
     let result = hasher.finalize();
     let mut pi = [0u8; 32];
     pi.copy_from_slice(&result);
-    
+
     StateProof {
         pi,
         public_inputs: vec![old_commitment, new_commitment, merkle_root],
@@ -215,11 +214,11 @@ mod tests {
         let left = [1u8; 32];
         let right = [2u8; 32];
         let hash = hash_pair(left, right);
-        
+
         // Hash should be deterministic
         let hash2 = hash_pair(left, right);
         assert_eq!(hash, hash2);
-        
+
         // Different inputs should produce different hashes
         let different = hash_pair(right, left);
         assert_ne!(hash, different);
@@ -229,11 +228,11 @@ mod tests {
     fn test_compute_merkle_root() {
         let leaves = vec![[1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32]];
         let root = compute_merkle_root(leaves.clone());
-        
+
         // Root should be deterministic
         let root2 = compute_merkle_root(leaves);
         assert_eq!(root, root2);
-        
+
         // Empty leaves should produce zero root
         assert_eq!(compute_merkle_root(vec![]), [0u8; 32]);
     }
@@ -243,10 +242,10 @@ mod tests {
         let params = PedersenParameters::default();
         let value = 100u64;
         let blinding = generate_random_blinding();
-        
+
         let commitment = pedersen_commit(value, blinding, &params);
         assert_eq!(commitment.len(), 32);
-        
+
         // Same inputs should produce same commitment
         let commitment2 = pedersen_commit(value, blinding, &params);
         assert_eq!(commitment, commitment2);
@@ -257,16 +256,11 @@ mod tests {
         let params = PedersenParameters::default();
         let old_root = [1u8; 32];
         let new_root = [2u8; 32];
-        
-        let proof = generate_state_proof(
-            old_root,
-            new_root,
-            [3u8; 32],
-            &params,
-        );
-        
+
+        let proof = generate_state_proof(old_root, new_root, [3u8; 32], &params);
+
         assert!(verify_wallet_proof(&old_root, &new_root, &proof, &params));
-        
+
         // Wrong roots should fail verification
         assert!(!verify_wallet_proof(&[4u8; 32], &new_root, &proof, &params));
     }

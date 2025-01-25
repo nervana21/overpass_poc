@@ -1,22 +1,21 @@
 // src/bitcoin/client.rs
 // src/bitcoin/scripts.rs
 
-use bitcoin::script::PushBytesBuf;
-use bitcoin::script::Builder;
 use bitcoin::opcodes::all::OP_RETURN;
+use bitcoin::script::Builder;
+use bitcoin::script::PushBytesBuf;
 use bitcoin::OutPoint;
 use bitcoin::ScriptBuf;
-use bitcoin::TxIn;
 use bitcoin::Transaction;
+use bitcoin::TxIn;
 
-use bitcoin::locktime;
 use crate::bitcoin::bitcoin_types::{
-    BitcoinLockState, HTLCParameters, StealthAddress, OpReturnMetadata,
+    BitcoinLockState, HTLCParameters, OpReturnMetadata, StealthAddress,
 };
+use bitcoin::locktime;
 
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
-
 
 /// Represents a Bitcoin client managing state and operations.
 #[derive(Debug, Clone)]
@@ -48,25 +47,26 @@ impl BitcoinClient {
         }
     }
     /// Creates an OP_RETURN script with encoded metadata.
-/// Creates an OP_RETURN script with encoded metadata.
+    /// Creates an OP_RETURN script with encoded metadata.
 
+    /// Creates an OP_RETURN script with encoded metadata.
+    pub fn create_op_return_script(
+        &self,
+        metadata: &OpReturnMetadata,
+    ) -> Result<ScriptBuf, String> {
+        let encoded = metadata
+            .encode()
+            .map_err(|e| format!("Failed to encode metadata: {}", e))?;
 
-/// Creates an OP_RETURN script with encoded metadata.
-pub fn create_op_return_script(
-    &self,
-    metadata: &OpReturnMetadata,
-) -> Result<ScriptBuf, String> {
-    let encoded = metadata
-        .encode()
-        .map_err(|e| format!("Failed to encode metadata: {}", e))?;
+        let push_bytes = PushBytesBuf::try_from(encoded)
+            .map_err(|e| format!("Invalid metadata bytes: {}", e))?;
 
-    let push_bytes = PushBytesBuf::try_from(encoded).map_err(|e| format!("Invalid metadata bytes: {}", e))?;
-
-    Ok(Builder::new()
-        .push_opcode(OP_RETURN)
-        .push_slice(&push_bytes)
-        .into_script())
-}    /// Creates a new Bitcoin transaction.
+        Ok(Builder::new()
+            .push_opcode(OP_RETURN)
+            .push_slice(&push_bytes)
+            .into_script())
+    }
+    /// Creates a new Bitcoin transaction.
     /// This function creates a new Bitcoin transaction with the given parameters.
     /// It takes a previous script, a value, and a pubkey hash as input.
     /// It returns a `Transaction` object that represents the Bitcoin transaction.
@@ -91,9 +91,9 @@ pub fn create_op_return_script(
         tx.output.push(bitcoin::TxOut {
             value,
             script_pubkey: ScriptBuf::new(),
-        });        
+        });
         Ok(tx)
-    }       
+    }
     /// Verifies HTLC parameters against a preimage.
     pub async fn verify_htlc(
         &self,
@@ -106,8 +106,7 @@ pub fn create_op_return_script(
                 .map_err(|e| format!("Failed to verify hashlock: {}", e)),
             None => Err("HTLC parameters not found".to_string()),
         }
-    }   
-
+    }
 
     /// Creates a new BitcoinLockState.
     pub fn create_lock_state(
@@ -176,7 +175,7 @@ mod tests {
     #[test]
     fn test_create_op_return_script() {
         let client = BitcoinClient::new();
-        
+
         let metadata = OpReturnMetadata::new(
             [0u8; 32],
             1,

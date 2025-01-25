@@ -1,17 +1,13 @@
-use crate::zkp::pedersen_parameters::PedersenParameters;
-use crate::zkp::global_root_contract::{GlobalRootContract, GlobalRootContractError};
-use std::collections::HashMap;
 use crate::zkp::channel::ChannelState;
+use crate::zkp::global_root_contract::{GlobalRootContract, GlobalRootContractError};
 use crate::zkp::helpers::{
-    compute_global_root,
-    generate_random_blinding,
-    pedersen_commit,
-    generate_state_proof,
-    Bytes32,
+    compute_global_root, generate_random_blinding, generate_state_proof, pedersen_commit, Bytes32,
 };
 use crate::zkp::mobile_optimized_storage::{MobileOptimizedStorage, StorageError};
+use crate::zkp::pedersen_parameters::PedersenParameters;
 use anyhow::Result;
 use serde_json;
+use std::collections::HashMap;
 
 use super::state_proof;
 
@@ -65,7 +61,7 @@ impl WalletContract {
             Ok(root) => root,
             Err(_) => [0u8; 32],
         };
-            
+
         Self {
             wallet_id,
             params,
@@ -75,7 +71,7 @@ impl WalletContract {
             global_contract,
         }
     }
-    
+
     /// Registers a new channel.
     pub fn register_channel(
         &mut self,
@@ -125,7 +121,8 @@ impl WalletContract {
         // Compute channel hashes
         let mut channel_hashes = HashMap::new();
         for (channel_id, channel_state) in &self.channels {
-            let channel_hash = channel_state.hash()
+            let channel_hash = channel_state
+                .hash()
                 .map_err(|e| WalletContractError::HashError(e.to_string()))?;
             channel_hashes.insert(*channel_id, channel_hash);
         }
@@ -147,31 +144,32 @@ impl WalletContract {
         // First, check if channel exists and get required data
         let (old_merkle_root, old_commitment_hash) = match self.channels.get(&channel_id) {
             Some(channel) => {
-                let hash = channel.hash()
+                let hash = channel
+                    .hash()
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 (channel.merkle_root, hash)
-            },
+            }
             None => return Ok(false),
         };
-    
+
         // Generate new commitment and proof
         let blinding = generate_random_blinding();
         let new_commitment = pedersen_commit(new_balance, blinding, &self.params);
-    
+
         let helper_proof = generate_state_proof(
             old_merkle_root,
             new_commitment,
             self.merkle_root,
             &self.params,
         );
-    
+
         // Convert helpers::StateProof to state_proof::StateProof
         let state_proof = state_proof::StateProof {
             pi: helper_proof.pi,
             public_inputs: helper_proof.public_inputs,
             timestamp: helper_proof.timestamp,
         };
-    
+
         // Now update the channel
         if let Some(channel) = self.channels.get_mut(&channel_id) {
             channel.balances = vec![new_balance];
@@ -179,7 +177,7 @@ impl WalletContract {
             channel.metadata = metadata;
             channel.merkle_root = new_commitment;
         }
-    
+
         // Store transaction
         self.storage
             .store_transaction(
@@ -190,15 +188,15 @@ impl WalletContract {
                 serde_json::Value::Null,
             )
             .map_err(|e| WalletContractError::StorageError(e.to_string()))?;
-    
+
         // Update merkle root
         self.update_merkle_root()?;
-    
+
         // Update global root contract
         self.global_contract
             .update_wallet(self.wallet_id, self.merkle_root, state_proof)
             .map_err(WalletContractError::from)?;
-    
+
         Ok(true)
     }
 
@@ -238,24 +236,14 @@ mod tests {
     fn test_register_channel() -> Result<(), WalletContractError> {
         let mut wallet = setup_test_wallet();
         let channel_id = [2u8; 32];
-        
+
         // Register new channel
-        let result = wallet.register_channel(
-            channel_id,
-            100,
-            [0u8; 32],
-            vec![1, 2, 3],
-        )?;
+        let result = wallet.register_channel(channel_id, 100, [0u8; 32], vec![1, 2, 3])?;
         assert!(result);
         assert!(wallet.has_channel(&channel_id));
 
         // Try registering same channel again
-        let result = wallet.register_channel(
-            channel_id,
-            200,
-            [0u8; 32],
-            vec![4, 5, 6],
-        )?;
+        let result = wallet.register_channel(channel_id, 200, [0u8; 32], vec![4, 5, 6])?;
         assert!(!result);
 
         Ok(())
@@ -265,7 +253,7 @@ mod tests {
     fn test_update_channel() -> Result<(), WalletContractError> {
         let mut wallet = setup_test_wallet();
         let channel_id = [2u8; 32];
-        
+
         // Register channel
         wallet.register_channel(channel_id, 100, [0u8; 32], vec![1, 2, 3])?;
 
@@ -286,7 +274,7 @@ mod tests {
     fn test_list_channels() -> Result<(), WalletContractError> {
         let mut wallet = setup_test_wallet();
         let channel_ids: Vec<[u8; 32]> = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
-        
+
         // Register multiple channels
         for &id in &channel_ids {
             wallet.register_channel(id, 100, [0u8; 32], vec![1, 2, 3])?;

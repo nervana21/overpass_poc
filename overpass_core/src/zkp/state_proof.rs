@@ -1,6 +1,6 @@
 // src/zkp/state_proof.rs
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// A 32-byte array, representing bytes32 in Python.
 pub type Bytes32 = [u8; 32];

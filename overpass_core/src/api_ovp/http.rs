@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Serialize, Deserialize)]
 struct ChannelConfig {
     initial_balance: u64,
@@ -54,12 +53,11 @@ struct OtherChannelState {
     nonce: u64,
 }
 
-
 /// A module for handling HTTP requests.
 pub mod http {
     use axum::{
         body::{Body, Bytes},
-        http::{Response, StatusCode, HeaderName, HeaderValue},
+        http::{HeaderName, HeaderValue, Response, StatusCode},
         response::IntoResponse,
     };
     use std::collections::HashMap;
@@ -99,7 +97,7 @@ pub mod http {
             for (key, value) in self.headers {
                 response.headers_mut().insert(
                     HeaderName::from_bytes(key.as_bytes()).unwrap(),
-                    HeaderValue::from_str(&value).unwrap()
+                    HeaderValue::from_str(&value).unwrap(),
                 );
             }
             response

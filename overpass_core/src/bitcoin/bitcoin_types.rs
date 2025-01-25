@@ -185,8 +185,8 @@ impl BitcoinLockState {
         engine.input(&self.nonce.to_le_bytes());
 
         if let Some(htlc) = &self.htlc_params {
-            let htlc_bytes =
-                serde_json::to_vec(htlc).map_err(|e| BitcoinStateError::EncodingError(e.to_string()))?;
+            let htlc_bytes = serde_json::to_vec(htlc)
+                .map_err(|e| BitcoinStateError::EncodingError(e.to_string()))?;
             engine.input(&htlc_bytes);
         }
 
@@ -200,8 +200,6 @@ impl BitcoinLockState {
         if next_state.lock_height <= self.lock_height {
             return Ok(false);
         }
-
-      
 
         if next_state.nonce <= self.nonce {
             return Ok(false);
@@ -222,4 +220,5 @@ impl BitcoinLockState {
         );
 
         Ok(true)
-    }}
+    }
+}

@@ -48,7 +48,9 @@ impl WalletContract {
     }
 
     pub fn get_state(&self) -> Result<JsValue, JsValue> {
-        let state = self.state_boc.serialize()
+        let state = self
+            .state_boc
+            .serialize()
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         Ok(JsValue::from(js_sys::Uint8Array::from(&state[..])))

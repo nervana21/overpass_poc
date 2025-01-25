@@ -4,11 +4,8 @@ use crate::bitcoin::bitcoin_types::{
     BitcoinLockState, HTLCParameters, OpReturnMetadata, StealthAddress,
 };
 use bitcoin::{
-    blockdata::script::ScriptBuf,
-    locktime,
-    opcodes::all::OP_RETURN,
-    script::Builder,
-    OutPoint, Sequence, Transaction, TxIn, TxOut, Witness,
+    blockdata::script::ScriptBuf, locktime, opcodes::all::OP_RETURN, script::Builder, OutPoint,
+    Sequence, Transaction, TxIn, TxOut, Witness,
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;

@@ -1,13 +1,11 @@
 use anyhow::{anyhow, Context, Result}; // Ensure Context is imported
 use bitcoin::Network;
-use plonky2_field::types::{Field, PrimeField64};
-use plonky2_field::goldilocks_field::GoldilocksField;
-use plonky2::plonk::config::Hasher;
 use overpass_core::zkp::{
-    bitcoin_ephemeral_state::BitcoinClient,
-    tree::MerkleTree,
-    channel::ChannelState,
+    bitcoin_ephemeral_state::BitcoinClient, channel::ChannelState, tree::MerkleTree,
 };
+use plonky2::plonk::config::Hasher;
+use plonky2_field::goldilocks_field::GoldilocksField;
+use plonky2_field::types::{Field, PrimeField64};
 
 /// Converts a ChannelState into a 32-byte hash using PoseidonHash.
 fn hash_state(state: &ChannelState) -> Result<[u8; 32]> {
@@ -58,7 +56,10 @@ fn hash_state(state: &ChannelState) -> Result<[u8; 32]> {
 }
 
 /// Applies transition data to the initial state to produce the next state.
-fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) -> Result<ChannelState> {
+fn apply_transition(
+    initial_state: &ChannelState,
+    transition_data: &[u8; 32],
+) -> Result<ChannelState> {
     // Extract delta_balance_0, delta_balance_1, delta_nonce from transition_data
     let delta_balance_0 = i32::from_le_bytes(
         transition_data[0..4]
@@ -94,8 +95,6 @@ fn apply_transition(initial_state: &ChannelState, transition_data: &[u8; 32]) ->
         .checked_add(delta_nonce as u64)
         .ok_or_else(|| anyhow!("Nonce overflow"))?;
 
-
-
     // Create the new state
     let mut new_state = ChannelState {
         balances: vec![new_balance_0 as u64, new_balance_1 as u64],
@@ -128,38 +127,47 @@ fn test_e2e_integration() -> Result<()> {
     // Fund the wallet
     let addr = client.get_new_address()?;
     println!("Generated address: {}", addr);
-    
+
     client.generate_blocks(101, &addr.to_string())?;
     println!("Generated 101 blocks");
-    
+
     let balance = client.get_balance()?;
     println!("Wallet balance: {}", balance);
     assert!(balance > 0, "Wallet balance should be greater than zero");
 
     // Define channel states
     println!("\n=== Creating Channel States ===\n");
-    
+
     let initial_state = ChannelState {
-        balances: vec![100, 50],  // Initial balances
-        nonce: 0,                 // Initial nonce
+        balances: vec![100, 50], // Initial balances
+        nonce: 0,                // Initial nonce
         metadata: vec![],
-        merkle_root: [0u8; 32],   // Placeholder value
+        merkle_root: [0u8; 32], // Placeholder value
         proof: None,
     };
     println!("Initial state created: {:?}", initial_state);
 
     // Generate transition data
     println!("\n=== Generating Transition Data ===\n");
-    
+
     let mut transition_data = [0u8; 32];
-    transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());  // delta_balance_0 = -3
-    transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());     // delta_balance_1 = +3
-    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());    // delta_nonce = +1
+    transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes()); // delta_balance_0 = -3
+    transition_data[4..8].copy_from_slice(&3i32.to_le_bytes()); // delta_balance_1 = +3
+    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes()); // delta_nonce = +1
 
     println!("Transition data: {:?}", transition_data);
-    println!("Delta balance 0: {}", i32::from_le_bytes(transition_data[0..4].try_into().unwrap()));
-    println!("Delta balance 1: {}", i32::from_le_bytes(transition_data[4..8].try_into().unwrap()));
-    println!("Delta nonce: {}", i32::from_le_bytes(transition_data[8..12].try_into().unwrap()));
+    println!(
+        "Delta balance 0: {}",
+        i32::from_le_bytes(transition_data[0..4].try_into().unwrap())
+    );
+    println!(
+        "Delta balance 1: {}",
+        i32::from_le_bytes(transition_data[4..8].try_into().unwrap())
+    );
+    println!(
+        "Delta nonce: {}",
+        i32::from_le_bytes(transition_data[8..12].try_into().unwrap())
+    );
 
     // Apply transition to get the next state
     println!("\n=== Applying Transition ===\n");
@@ -168,7 +176,7 @@ fn test_e2e_integration() -> Result<()> {
 
     // Compute state hashes
     println!("\n=== Computing State Hashes ===\n");
-    
+
     let initial_state_bytes = hash_state(&initial_state)?;
     let next_state_bytes = hash_state(&next_state)?;
 
@@ -177,25 +185,27 @@ fn test_e2e_integration() -> Result<()> {
 
     // Initialize Merkle tree and update with states
     println!("\n=== Updating Merkle Tree ===\n");
-    
+
     // Initialize Merkle tree
     let mut smt = MerkleTree::new();
-    
+
     smt.insert(initial_state_bytes)?;
     println!("Initial state added to Merkle tree");
-    
+
     smt.insert(next_state_bytes)?;
     println!("Next state added to Merkle tree");
 
     // Generate and verify Merkle proof for the next state
     println!("\n=== Generating and Verifying Merkle Proof ===\n");
-    let merkle_proof = smt.get_proof(&next_state_bytes).ok_or(anyhow!("Failed to generate Merkle proof"))?;
+    let merkle_proof = smt
+        .get_proof(&next_state_bytes)
+        .ok_or(anyhow!("Failed to generate Merkle proof"))?;
     println!("Merkle proof generated successfully");
-    
+
     // Verify Merkle proof
     println!("Merkle proof verification started");
     println!("Root: {:?}", smt.root);
-    
+
     if !smt.verify_proof(&next_state_bytes, &merkle_proof, &smt.root) {
         return Err(anyhow!("Merkle proof verification failed"));
     }
@@ -214,13 +224,13 @@ fn test_e2e_integration() -> Result<()> {
 }
 
 /// Builds an OP_RETURN transaction embedding the provided data.
-fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Result<String> {  
+fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Result<String> {
     let amount = 100_000;
     let (outpoint, utxo) = client.get_spendable_utxo(amount)?;
     println!("UTXO fetched");
     println!("UTXO: {:?}", utxo);
     println!("Outpoint: {}", outpoint);
-    
+
     println!("Amount: {}", amount);
     println!("Data: {:?}", data);
 

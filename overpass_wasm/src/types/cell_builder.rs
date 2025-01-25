@@ -122,7 +122,8 @@ impl CellBuilder {
     pub fn build_cells(&self) -> Result<Vec<Cell>, CellBuilderError> {
         let mut cells = Vec::new();
         for (id, cell_lock) in &self.cells {
-            let cell = cell_lock.read()
+            let cell = cell_lock
+                .read()
                 .map_err(|e| CellBuilderError::LockError(e.to_string()))?
                 .clone();
             cells.push(cell);
@@ -160,20 +161,19 @@ mod tests {
     #[test]
     fn test_cell_builder() {
         let mut builder = CellBuilder::new();
-        
+
         let cell1 = Cell::new(1, vec![1, 2, 3])
             .with_balance(100)
             .with_references(vec![2, 3]);
-            
-        let cell2 = Cell::new(2, vec![4, 5, 6])
-            .with_balance(200);
-            
+
+        let cell2 = Cell::new(2, vec![4, 5, 6]).with_balance(200);
+
         assert!(builder.add_cell(cell1.clone()).is_ok());
         assert!(builder.add_cell(cell2.clone()).is_ok());
-        
+
         assert_eq!(builder.cell_count(), 2);
         assert_eq!(builder.total_size(), 300);
-        
+
         let cells = builder.build_cells().unwrap();
         assert_eq!(cells.len(), 2);
         assert!(cells.contains(&cell1));
@@ -184,8 +184,11 @@ mod tests {
     fn test_duplicate_cell() {
         let mut builder = CellBuilder::new();
         let cell = Cell::new(1, vec![1, 2, 3]);
-        
+
         assert!(builder.add_cell(cell.clone()).is_ok());
-        assert!(matches!(builder.add_cell(cell), Err(CellBuilderError::CellExists)));
+        assert!(matches!(
+            builder.add_cell(cell),
+            Err(CellBuilderError::CellExists)
+        ));
     }
 }

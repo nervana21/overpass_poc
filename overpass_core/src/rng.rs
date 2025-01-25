@@ -1,5 +1,5 @@
-use rand::RngCore;
 use rand::Error;
+use rand::RngCore;
 
 pub struct WasmRng;
 

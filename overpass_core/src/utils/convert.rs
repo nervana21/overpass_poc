@@ -78,7 +78,7 @@ pub fn f32_to_bytes(value: f32) -> [u8; 4] {
 
 pub fn f32_from_bytes(bytes: [u8; 4]) -> f32 {
     f32::from_be_bytes(bytes)
-}   
+}
 
 pub fn bool_to_bytes(value: bool) -> [u8; 1] {
     [value as u8]
@@ -97,7 +97,7 @@ pub fn string_from_bytes(bytes: &[u8]) -> String {
 
 pub fn bytes_to_string(bytes: &[u8]) -> String {
     String::from_utf8(bytes.to_vec()).unwrap()
-}   
+}
 
 pub fn bytes_to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
@@ -152,5 +152,4 @@ pub fn bytes_to_f32(bytes: &[u8]) -> f32 {
 
 pub fn bytes_to_bool(bytes: &[u8]) -> bool {
     bool_from_bytes(bytes.try_into().unwrap())
-}   
-
+}

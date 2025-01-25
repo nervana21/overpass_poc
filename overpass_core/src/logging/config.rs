@@ -44,7 +44,8 @@ impl Config {
             fs::create_dir_all(parent)?; // Ensure directory exists.
         }
 
-        let contents = toml::to_string(self).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let contents =
+            toml::to_string(self).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         fs::write(path, contents)
     }
 

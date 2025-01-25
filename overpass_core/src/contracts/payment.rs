@@ -1,5 +1,5 @@
-use wasm_bindgen::prelude::*;
 use crate::types::state_boc::StateBOC;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct PaymentChannelContract {
@@ -20,7 +20,12 @@ impl PaymentChannelContract {
     }
 
     #[wasm_bindgen]
-    pub fn transfer(&mut self, from_index: usize, to_index: usize, amount: u64) -> Result<(), JsValue> {
+    pub fn transfer(
+        &mut self,
+        from_index: usize,
+        to_index: usize,
+        amount: u64,
+    ) -> Result<(), JsValue> {
         if from_index >= 2 || to_index >= 2 {
             return Err(JsValue::from_str("Invalid participant index"));
         }
@@ -41,7 +46,9 @@ impl PaymentChannelContract {
 
     #[wasm_bindgen]
     pub fn settle(&self) -> Result<JsValue, JsValue> {
-        let state = self.state_boc.serialize()
+        let state = self
+            .state_boc
+            .serialize()
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
         Ok(serde_wasm_bindgen::to_value(&state).unwrap())
     }

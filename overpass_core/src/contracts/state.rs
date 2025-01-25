@@ -1,9 +1,9 @@
-use wasm_bindgen::prelude::wasm_bindgen;
 use crate::types::dag_boc::DAGBOC;
 use crate::types::ops::OpCode;
 use crate::types::state_boc::StateBOC;
-use wasm_bindgen::JsValue;
 use serde_wasm_bindgen::from_value;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::JsValue;
 
 #[wasm_bindgen]
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -31,7 +31,8 @@ impl StateContract {
         let op_code: OpCode = from_value(operation)
             .map_err(|e| JsValue::from_str(&format!("Failed to deserialize operation: {}", e)))?;
 
-        self.dag_boc.process_op_code(op_code)
+        self.dag_boc
+            .process_op_code(op_code)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let cells = self.dag_boc.get_state_cells();
@@ -44,8 +45,8 @@ impl StateContract {
 
     #[wasm_bindgen]
     pub fn verify_state(&self, state_bytes: Vec<u8>) -> Result<bool, JsValue> {
-        let submitted_state = StateBOC::deserialize(&state_bytes)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let submitted_state =
+            StateBOC::deserialize(&state_bytes).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let current_hash = self.state_boc.compute_hash();
         let submitted_hash = submitted_state.compute_hash();
@@ -65,7 +66,8 @@ impl StateContract {
 
     #[wasm_bindgen]
     pub fn get_state(&self) -> Result<Vec<u8>, JsValue> {
-        self.state_boc.serialize()
+        self.state_boc
+            .serialize()
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -148,7 +150,9 @@ impl WalletContract {
 
     /// Retrieves the current state.
     pub fn get_state(&self) -> Result<JsValue, JsValue> {
-        let state = self.state_boc.serialize()
+        let state = self
+            .state_boc
+            .serialize()
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
         Ok(serde_wasm_bindgen::to_value(&state).unwrap())
     }

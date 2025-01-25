@@ -1,15 +1,17 @@
 // src/zkp/bitcoin_ephemeral_state.rs
 
-use std::str::FromStr;
 use anyhow::{anyhow, Context, Result};
-use bitcoincore_rpc::{Auth, Client, RpcApi};
-use bitcoin::{
-    blockdata::transaction::{Transaction, TxIn, TxOut}, consensus::encode, Address, Network, OutPoint, ScriptBuf
-};
-use bitcoin::PublicKey;
 use bitcoin::blockdata::script::Builder;
-use bitcoin::secp256k1::{Secp256k1, SecretKey, All};
+use bitcoin::secp256k1::{All, Secp256k1, SecretKey};
+use bitcoin::PublicKey;
+use bitcoin::{
+    blockdata::transaction::{Transaction, TxIn, TxOut},
+    consensus::encode,
+    Address, Network, OutPoint, ScriptBuf,
+};
+use bitcoincore_rpc::{Auth, Client, RpcApi};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Represents a simple Bitcoin client for testing purposes.
 pub struct BitcoinClient {
@@ -21,12 +23,17 @@ pub struct BitcoinClient {
 
 impl BitcoinClient {
     /// Creates a new Bitcoin client.
-    pub fn new(rpc_url: &str, rpc_user: &str, rpc_password: &str, network: Network) -> Result<Self> {
+    pub fn new(
+        rpc_url: &str,
+        rpc_user: &str,
+        rpc_password: &str,
+        network: Network,
+    ) -> Result<Self> {
         // Initialize the RPC client with credentials.
         let auth = Auth::UserPass(rpc_user.to_string(), rpc_password.to_string());
         let rpc = Client::new(rpc_url, auth)
             .context("Failed to create RPC client. Check RPC URL and credentials.")?;
-        
+
         Ok(Self {
             rpc,
             utxos: HashMap::new(),
@@ -37,7 +44,9 @@ impl BitcoinClient {
 
     /// Retrieves a new Bitcoin address.
     pub fn get_new_address(&self) -> Result<Address> {
-        let address = self.rpc.get_new_address(None, None)
+        let address = self
+            .rpc
+            .get_new_address(None, None)
             .context("Failed to get new address")?;
         Ok(address.assume_checked())
     }
@@ -47,14 +56,17 @@ impl BitcoinClient {
         let addr = Address::from_str(address)
             .context("Invalid Bitcoin address")?
             .assume_checked();
-        self.rpc.generate_to_address(count.into(), &addr)
+        self.rpc
+            .generate_to_address(count.into(), &addr)
             .context("Failed to generate blocks")?;
         Ok(())
     }
 
     /// Retrieves the balance of the wallet.
     pub fn get_balance(&self) -> Result<u64> {
-        let balance = self.rpc.get_balance(None, None)
+        let balance = self
+            .rpc
+            .get_balance(None, None)
             .context("Failed to get balance")?;
         Ok(balance.to_sat())
     }
@@ -77,7 +89,9 @@ impl BitcoinClient {
     /// Refreshes the UTXO set by fetching from the RPC.
     fn refresh_utxos(&mut self) -> Result<()> {
         self.utxos.clear();
-        let utxos = self.rpc.list_unspent(None, None, None, None, None)
+        let utxos = self
+            .rpc
+            .list_unspent(None, None, None, None, None)
             .context("Failed to list unspent transactions")?;
         for utxo in utxos {
             let txid = utxo.txid.to_string();
@@ -96,12 +110,13 @@ impl BitcoinClient {
 
     /// Signs a raw transaction hex.
     pub fn sign_raw_transaction(&self, raw_tx_hex: &str) -> Result<String> {
-        let tx_bytes = hex::decode(raw_tx_hex)
-            .context("Failed to decode raw transaction hex")?;
-        let tx: Transaction = encode::deserialize(&tx_bytes)
-            .context("Failed to deserialize transaction")?;
-        
-        let signed_tx = self.rpc.sign_raw_transaction_with_wallet(&tx, None, None)
+        let tx_bytes = hex::decode(raw_tx_hex).context("Failed to decode raw transaction hex")?;
+        let tx: Transaction =
+            encode::deserialize(&tx_bytes).context("Failed to deserialize transaction")?;
+
+        let signed_tx = self
+            .rpc
+            .sign_raw_transaction_with_wallet(&tx, None, None)
             .context("Failed to sign transaction")?;
 
         let signed_tx_hex = hex::encode(signed_tx.hex);
@@ -110,7 +125,9 @@ impl BitcoinClient {
 
     /// Sends a raw transaction given its hex representation.
     pub fn send_raw_transaction_hex(&self, raw_tx_hex: &str) -> Result<String> {
-        let tx = self.rpc.send_raw_transaction(raw_tx_hex)
+        let tx = self
+            .rpc
+            .send_raw_transaction(raw_tx_hex)
             .context("Failed to send raw transaction")?;
         Ok(tx.to_string())
     }
@@ -128,12 +145,19 @@ impl BitcoinClient {
 
     /// Generates a key pair for signing transactions.
     pub fn generate_keypair(&self, secret_key: &SecretKey) -> PublicKey {
-        PublicKey::from_private_key(&self.secp, &bitcoin::PrivateKey::from_slice(&secret_key[..], self.network).unwrap())
+        PublicKey::from_private_key(
+            &self.secp,
+            &bitcoin::PrivateKey::from_slice(&secret_key[..], self.network).unwrap(),
+        )
     }
 }
 
 /// Builds an OP_RETURN transaction embedding the provided data.
-pub fn build_op_return_transaction(client: &mut BitcoinClient, _data: &[u8; 32], private_key: &SecretKey) -> Result<String> {
+pub fn build_op_return_transaction(
+    client: &mut BitcoinClient,
+    _data: &[u8; 32],
+    private_key: &SecretKey,
+) -> Result<String> {
     // Generate key pair
     let public_key = client.generate_keypair(private_key);
     let script_pubkey = client.create_p2pkh_script(&public_key);
@@ -149,7 +173,7 @@ pub fn build_op_return_transaction(client: &mut BitcoinClient, _data: &[u8; 32],
     // Build OP_RETURN script
     let op_return_script = Builder::new()
         .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN)
-        .into_script();      
+        .into_script();
 
     // Create inputs and outputs
     let tx_in = TxIn {

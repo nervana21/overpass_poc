@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serialize};
 
 /// Represents a state init object.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ pub struct StateBOC {
     pub references: Vec<Vec<u8>>,
     pub roots: Vec<Vec<u8>>,
     pub hash: Option<[u8; 32]>,
-}   
+}
 
 impl StateBOC {
     pub fn new() -> Self {
@@ -120,7 +120,7 @@ impl<'de> Deserialize<'de> for StateBOC {
         }
 
         let helper = StateBocHelper::deserialize(deserializer)?;
-        
+
         Ok(StateBOC {
             state_cells: helper.state_cells,
             references: helper.references,

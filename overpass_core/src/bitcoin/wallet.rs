@@ -1,21 +1,21 @@
-use rand::Rng;
-use serde::{Deserialize, Serialize};
 use crate::bitcoin::bitcoin_types::StealthAddress;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use bip39::{Language, Mnemonic};
+use bitcoin::{
+    bip32::{ExtendedPrivKey as Xpriv, ExtendedPubKey as Xpub},
+    secp256k1::{KeyPair, Message, PublicKey, Secp256k1, SecretKey},
+    sighash::{EcdsaSighashType, SighashCache},
+    Network, Script, Transaction,
+};
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
 use rand::rngs::OsRng;
+use rand::Rng;
 use rand::RngCore;
-use bip39::{Mnemonic, Language};
-use bitcoin::{
-    bip32::{ExtendedPrivKey as Xpriv, ExtendedPubKey as Xpub},
-    secp256k1::{Secp256k1, SecretKey, PublicKey, KeyPair, Message},
-    Network, Transaction, Script,
-    sighash::{SighashCache, EcdsaSighashType},
-};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 
 /// Errors related to wallet and key management
 #[derive(Error, Debug)]
@@ -130,8 +130,13 @@ impl Wallet {
         })
     }
 
-    pub fn create_stealth_address_internal(&self, wallet: &Wallet) -> Result<StealthAddress, WalletError> {
-        let stealth_keys = wallet.stealth_keys.as_ref()
+    pub fn create_stealth_address_internal(
+        &self,
+        wallet: &Wallet,
+    ) -> Result<StealthAddress, WalletError> {
+        let stealth_keys = wallet
+            .stealth_keys
+            .as_ref()
             .ok_or_else(|| WalletError::StealthAddressError("No stealth keys found".to_string()))?;
         let secp = Secp256k1::new();
         let scan_pubkey = PublicKey::from_secret_key(&secp, &stealth_keys.scan_key);
@@ -159,7 +164,8 @@ impl Wallet {
         let cipher = ChaCha20Poly1305::new_from_slice(&self.encryption_key)
             .map_err(|e| WalletError::EncryptionError(e.to_string()))?;
         let nonce = Nonce::from_slice(&self.encryption_key[..12]);
-        let encrypted_data = cipher.encrypt(nonce, data.as_bytes())
+        let encrypted_data = cipher
+            .encrypt(nonce, data.as_bytes())
             .map_err(|e| WalletError::EncryptionError(e.to_string()))?;
         Ok(encrypted_data)
     }
@@ -168,7 +174,8 @@ impl Wallet {
         let cipher = ChaCha20Poly1305::new_from_slice(&self.encryption_key)
             .map_err(|e| WalletError::EncryptionError(e.to_string()))?;
         let nonce = Nonce::from_slice(&self.encryption_key[..12]);
-        let decrypted_data = cipher.decrypt(nonce, encrypted_data)
+        let decrypted_data = cipher
+            .decrypt(nonce, encrypted_data)
             .map_err(|e| WalletError::EncryptionError(e.to_string()))?;
         Ok(String::from_utf8(decrypted_data)?)
     }
@@ -181,21 +188,24 @@ impl Wallet {
         prev_script: &Script,
         value: u64,
     ) -> Result<(), WalletError> {
-        let stealth_keys = wallet.stealth_keys.as_ref()
+        let stealth_keys = wallet
+            .stealth_keys
+            .as_ref()
             .ok_or_else(|| WalletError::StealthAddressError("No stealth keys found".to_string()))?;
         let mut sighash_cache = SighashCache::new(&mut *transaction);
-        let sighash = sighash_cache
-            .segwit_signature_hash(
-                input_index,
-                prev_script,
-                value,
-                EcdsaSighashType::All,
-            )?;
+        let sighash = sighash_cache.segwit_signature_hash(
+            input_index,
+            prev_script,
+            value,
+            EcdsaSighashType::All,
+        )?;
         let secp = Secp256k1::new();
         let keypair = KeyPair::from_secret_key(&secp, &stealth_keys.spend_key);
         let message = Message::from_slice(&sighash[..])?;
         let signature = secp.sign_schnorr(&message, &keypair);
-        transaction.input[input_index].witness.push(signature.as_ref().to_vec());
+        transaction.input[input_index]
+            .witness
+            .push(signature.as_ref().to_vec());
         Ok(())
     }
 }

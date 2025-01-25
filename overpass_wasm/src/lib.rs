@@ -7,8 +7,8 @@ mod storage;
 
 pub mod types; // Ensure this is declared
 
+pub use channel::{create_channel, verify_state_update, Channel, ChannelWrapper};
 pub use types::dag_boc::StateUpdateWrapper; // Re-export `StateUpdateWrapper`
-pub use channel::{Channel, ChannelWrapper, create_channel, verify_state_update};
 pub use types::generate_keypair; // Re-export `generate_keypair`
 use wasm_bindgen::prelude::*;
 
