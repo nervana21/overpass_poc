@@ -2,33 +2,21 @@
 
 use crate::zkp::helpers::Bytes32;
 use sha2::{Digest, Sha256};
-use std::error::Error;
-use std::fmt;
+// use std::error::Error;
+// use std::fmt;
+use thiserror::Error;
 
 /// Represents errors that can occur in the Merkle Tree operations.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum MerkleTreeError {
+    #[error("Invalid input: {0}")]
     InvalidInput(String),
+    #[error("Proof generation failed: {0}")]
     ProofGenerationFailed(String),
+    #[error("Proof verification failed: {0}")]
     ProofVerificationFailed(String),
     // Add other relevant error variants as needed
 }
-
-impl fmt::Display for MerkleTreeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MerkleTreeError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
-            MerkleTreeError::ProofGenerationFailed(msg) => {
-                write!(f, "Proof generation failed: {}", msg)
-            }
-            MerkleTreeError::ProofVerificationFailed(msg) => {
-                write!(f, "Proof verification failed: {}", msg)
-            }
-        }
-    }
-}
-
-impl Error for MerkleTreeError {}
 
 /// Represents a simple Merkle Tree.
 #[derive(Debug, Clone)]
