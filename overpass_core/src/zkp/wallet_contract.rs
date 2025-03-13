@@ -8,6 +8,7 @@ use crate::zkp::pedersen_parameters::PedersenParameters;
 use anyhow::Result;
 use serde_json;
 use std::collections::HashMap;
+use std::fmt;
 
 use super::state_proof;
 
@@ -221,6 +222,28 @@ impl WalletContract {
     }
 }
 
+impl fmt::Display for WalletContract {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Wallet Contract:")?;
+        writeln!(f, "  ID: 0x{}", hex::encode(self.wallet_id))?;
+        // writeln!(f, "  {:?}", self.params)?;
+        writeln!(f, "  Merkle Root: 0x{}", hex::encode(self.merkle_root))?;
+        writeln!(f, "  Channels: {}", self.channels.len())?;
+
+        // Display individual channels
+        for (channel_id, state) in &self.channels {
+            writeln!(f, "\n  Channel 0x{}:", hex::encode(channel_id))?;
+            writeln!(f, "    Balance: {} units", state.balances[0])?;
+            writeln!(f, "    Nonce: {}", state.nonce)?;
+            if !state.metadata.is_empty() {
+                writeln!(f, "    Metadata: {} bytes", state.metadata.len())?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,6 +253,23 @@ mod tests {
         let params = PedersenParameters::default();
         let global_contract = GlobalRootContract::new(params.clone());
         WalletContract::new(wallet_id, params, global_contract)
+    }
+
+    #[test]
+    fn test_wallet_contract_display() {
+        let wallet = setup_test_wallet();
+
+        // Convert wallet to string and verify basic components
+        let wallet_string = wallet.to_string();
+
+        // Basic assertions to verify the display output contains expected components
+        assert!(wallet_string.contains("Wallet Contract:"));
+        assert!(wallet_string.contains("ID: 0x"));
+        assert!(wallet_string.contains("Merkle Root: 0x"));
+        assert!(wallet_string.contains("Channels: 0")); // Initially 0 channels
+
+        // Print the wallet display for visual inspection
+        // println!("Wallet Display:\n{}", wallet_string);
     }
 
     #[test]
