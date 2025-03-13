@@ -254,7 +254,7 @@ fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Re
     };
 
     let tx_out_change = bitcoin::TxOut {
-        value: amount - 1_000,
+        value: utxo.value - 1_000,
         script_pubkey: utxo.script_pubkey,
     };
 
