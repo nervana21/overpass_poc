@@ -86,7 +86,7 @@ impl WalletContract {
         }
 
         // Sanitize metadata
-        let sanitized_metadata = Self::sanitize_metadata(metadata).unwrap_or_else(Vec::new);
+        let sanitized_metadata = metadata.is_empty().then(Vec::new).unwrap_or(metadata);
         let channel = ChannelState {
             balances: vec![initial_balance],
             nonce: 0,
@@ -106,15 +106,6 @@ impl WalletContract {
             .map_err(WalletContractError::from)?;
 
         Ok(true)
-    }
-
-    /// Helper to sanitize metadata, ensuring it's valid.
-    fn sanitize_metadata(metadata: Vec<u8>) -> Option<Vec<u8>> {
-        if metadata.is_empty() {
-            None
-        } else {
-            Some(metadata)
-        }
     }
 
     /// Updates the Merkle root for the wallet, based on channel states.
