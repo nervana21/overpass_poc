@@ -9,6 +9,10 @@ use plonky2_field::types::Field;
 use plonky2_field::types::PrimeField64;
 use serde::{Deserialize, Serialize};
 
+use super::helpers::generate_random_blinding;
+use super::helpers::{compute_channel_root, generate_state_proof, pedersen_commit};
+use super::pedersen_parameters::PedersenParameters;
+
 /// Represents the state of a channel.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChannelState {
@@ -20,6 +24,44 @@ pub struct ChannelState {
 }
 
 impl ChannelState {
+    pub fn new(
+        channel_id: [u8; 32],
+        initial_balance: u64,
+        metadata: Vec<u8>,
+        params: &PedersenParameters,
+    ) -> Self {
+        let nonce = 0;
+
+        // sanitize metadata
+        let metadata = metadata.is_empty().then(Vec::new).unwrap_or(metadata);
+        let blinding = generate_random_blinding();
+
+        // compute channel root commitment
+        let commitment = compute_channel_root(
+            channel_id,
+            pedersen_commit(initial_balance, blinding, params),
+            nonce,
+        );
+
+        // generate proof using unified helper
+        let state_proof = generate_state_proof(
+            commitment, // Old commitment = initial state
+            commitment, // New commitment = same for initial state
+            commitment, // Merkle root = commitment for single channel
+            params,
+        );
+
+        let proof = Some(state_proof.pi.to_vec());
+
+        Self {
+            balances: vec![initial_balance],
+            nonce,
+            metadata,
+            merkle_root: commitment,
+            proof,
+        }
+    }
+
     /// Converts the ChannelState into a 32-byte hash using PoseidonHash.
     pub fn hash_state(&self) -> Result<[u8; 32]> {
         // Serialize the entire state using serde_json for consistency
@@ -106,6 +148,49 @@ impl ChannelState {
 mod tests {
     use super::*;
     use crate::zkp::tree::{MerkleTree, MerkleTreeError};
+
+    fn setup_test_channel_state_params() -> ([u8; 32], u64, Vec<u8>, PedersenParameters) {
+        // Setup test parameters
+        let channel_id = [1u8; 32];
+        let initial_balance = 100;
+        let metadata = vec![1, 2, 3];
+        let params = PedersenParameters::default();
+
+        (channel_id, initial_balance, metadata, params)
+    }
+
+    #[test]
+    fn test_channel_state_new() {
+        let (channel_id, initial_balance, metadata, params) = setup_test_channel_state_params();
+
+        // Test case 1: Basic initialization with non-empty metadata
+        let channel = ChannelState::new(channel_id, initial_balance, metadata.clone(), &params);
+
+        assert_eq!(channel.balances, vec![initial_balance]);
+        assert_eq!(channel.nonce, 0);
+        assert_eq!(channel.metadata, metadata);
+        assert!(channel.proof.is_some()); // Proof should be generated
+
+        // Verify merkle_root is not zero (should be computed from commitment)
+        assert_ne!(channel.merkle_root, [0u8; 32]);
+
+        // Test case 2: Initialization with empty metadata
+        let channel_empty_metadata =
+            ChannelState::new(channel_id, initial_balance, Vec::<u8>::new(), &params);
+        assert_eq!(channel_empty_metadata.metadata, Vec::<u8>::new());
+        assert!(channel_empty_metadata.proof.is_some());
+
+        // Test case 3: Initialization with zero balance
+        let channel_zero_balance = ChannelState::new(channel_id, 0, Vec::<u8>::new(), &params);
+        assert_eq!(channel_zero_balance.balances, vec![0]);
+        assert!(channel_zero_balance.proof.is_some());
+
+        // Verify that different channel_ids produce different merkle roots
+        let different_channel_id = [2u8; 32];
+        let different_channel =
+            ChannelState::new(different_channel_id, initial_balance, metadata, &params);
+        assert_ne!(channel.merkle_root, different_channel.merkle_root);
+    }
 
     #[test]
     fn test_state_transition_with_smt() -> Result<(), MerkleTreeError> {
