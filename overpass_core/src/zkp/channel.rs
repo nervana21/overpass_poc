@@ -10,7 +10,7 @@ use plonky2_field::types::PrimeField64;
 use serde::{Deserialize, Serialize};
 
 use super::helpers::generate_random_blinding;
-use super::helpers::{compute_channel_root, generate_state_proof, pedersen_commit};
+use super::helpers::{compute_channel_root, generate_state_proof, pedersen_commit, Bytes32};
 use super::pedersen_parameters::PedersenParameters;
 
 /// Represents the state of a channel.
@@ -19,13 +19,13 @@ pub struct ChannelState {
     pub balances: Vec<u64>,
     pub nonce: u64,
     pub metadata: Vec<u8>,
-    pub merkle_root: [u8; 32],
+    pub merkle_root: Bytes32,
     pub proof: Option<Vec<u8>>,
 }
 
 impl ChannelState {
     pub fn new(
-        channel_id: [u8; 32],
+        channel_id: Bytes32,
         initial_balance: u64,
         metadata: Vec<u8>,
         params: &PedersenParameters,
@@ -63,7 +63,7 @@ impl ChannelState {
     }
 
     /// Converts the ChannelState into a 32-byte hash using PoseidonHash.
-    pub fn hash_state(&self) -> Result<[u8; 32]> {
+    pub fn hash_state(&self) -> Result<Bytes32> {
         // Serialize the entire state using serde_json for consistency
         let serialized = serde_json::to_vec(self).context("Failed to serialize channel state")?;
 
@@ -118,9 +118,9 @@ impl ChannelState {
         &self,
         smt: &mut MerkleTree,
         old_state: &ChannelState,
-        _old_key: [u8; 32],
-        new_key: [u8; 32],
-    ) -> Result<([u8; 32], [u8; 32]), MerkleTreeError> {
+        _old_key: Bytes32,
+        new_key: Bytes32,
+    ) -> Result<(Bytes32, Bytes32), MerkleTreeError> {
         if !self.verify_transition(old_state) {
             return Err(MerkleTreeError::InvalidInput(
                 "Invalid state transition".to_string(),
@@ -139,7 +139,7 @@ impl ChannelState {
     }
 
     /// Calculates hash of the channel state for consistent referencing.
-    pub fn hash(&self) -> Result<[u8; 32]> {
+    pub fn hash(&self) -> Result<Bytes32> {
         self.hash_state()
     }
 }
@@ -149,7 +149,7 @@ mod tests {
     use super::*;
     use crate::zkp::tree::{MerkleTree, MerkleTreeError};
 
-    fn setup_test_channel_state_params() -> ([u8; 32], u64, Vec<u8>, PedersenParameters) {
+    fn setup_test_channel_state_params() -> (Bytes32, u64, Vec<u8>, PedersenParameters) {
         // Setup test parameters
         let channel_id = [1u8; 32];
         let initial_balance = 100;
