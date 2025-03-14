@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::helpers::generate_random_blinding;
 use super::helpers::{compute_channel_root, generate_state_proof, pedersen_commit, Bytes32};
 use super::pedersen_parameters::PedersenParameters;
+use super::state_proof;
 
 /// Represents the state of a channel.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,32 +31,36 @@ impl ChannelState {
         metadata: Vec<u8>,
         params: &PedersenParameters,
     ) -> Self {
-        let nonce = 0;
-
         // sanitize metadata
         let metadata = metadata.is_empty().then(Vec::new).unwrap_or(metadata);
-        let blinding = generate_random_blinding();
 
         // compute channel root commitment
+        let blinding = generate_random_blinding();
         let commitment = compute_channel_root(
             channel_id,
             pedersen_commit(initial_balance, blinding, params),
-            nonce,
+            0,
         );
 
-        // generate proof using unified helper
-        let state_proof = generate_state_proof(
+        // generate helper proof for the initial state
+        let helper_proof = generate_state_proof(
             commitment, // Old commitment = initial state
             commitment, // New commitment = same for initial state
             commitment, // Merkle root = commitment for single channel
             params,
         );
 
+        let state_proof = state_proof::StateProof {
+            pi: helper_proof.pi,
+            public_inputs: helper_proof.public_inputs,
+            timestamp: helper_proof.timestamp,
+        };
+
         let proof = Some(state_proof.pi.to_vec());
 
         Self {
             balances: vec![initial_balance],
-            nonce,
+            nonce: 0,
             metadata,
             merkle_root: commitment,
             proof,
