@@ -137,22 +137,20 @@ pub fn verify_wallet_proof(
         return false;
     }
 
-    // Verify the proof using the Pedersen parameters
+    // compute the hash
     let mut hasher = Sha256::new();
-    hasher.update(&proof.pi);
-    for input in &proof.public_inputs {
-        hasher.update(input);
-    }
-    hasher.update(params.g.compress().as_bytes());
-    hasher.update(params.h.compress().as_bytes());
+    proof
+        .public_inputs
+        .iter()
+        .for_each(|input| hasher.update(input));
+    hasher.update(&proof.timestamp.to_le_bytes()); // timestamp
+    hasher.update(params.g.compress().as_bytes()); // Pedersen parameter `g`
+    hasher.update(params.h.compress().as_bytes()); // Pedersen parameter `h`
 
-    let result = hasher.finalize();
-    let mut expected = [0u8; 32];
-    expected.copy_from_slice(&result);
+    let expected = hasher.finalize();
 
-    proof.pi == expected
+    proof.pi == *expected
 }
-
 /// Verifies a zero-knowledge proof using Pedersen commitments.
 pub fn verify_zk_proof(
     proof: &Bytes32,
@@ -192,6 +190,9 @@ pub fn generate_state_proof(
 
     let timestamp = current_timestamp();
     hasher.update(&timestamp.to_le_bytes());
+
+    hasher.update(params.g.compress().as_bytes());
+    hasher.update(params.h.compress().as_bytes());
 
     let result = hasher.finalize();
     let mut pi = [0u8; 32];
@@ -263,5 +264,30 @@ mod tests {
 
         // Wrong roots should fail verification
         assert!(!verify_wallet_proof(&[4u8; 32], &new_root, &proof, &params));
+    }
+
+    #[test]
+    fn test_generate_state_proof() {
+        let params = PedersenParameters::default();
+
+        // Define known inputs for the proof
+        let old_commitment = [1u8; 32];
+        let new_commitment = [2u8; 32];
+        let merkle_root = [3u8; 32];
+
+        // Generate the state proof
+        let proof = generate_state_proof(old_commitment, new_commitment, merkle_root, &params);
+
+        // Check that the proof has a valid length and expected public inputs
+        assert_eq!(proof.pi.len(), 32);
+        assert_eq!(
+            proof.public_inputs,
+            vec![old_commitment, new_commitment, merkle_root]
+        );
+        assert!(proof.timestamp > 0);
+
+        // Verify that the wallet proof passes using the given parameters
+        let is_valid = verify_wallet_proof(&old_commitment, &new_commitment, &proof, &params);
+        assert!(is_valid, "The generated state proof should be valid.");
     }
 }
