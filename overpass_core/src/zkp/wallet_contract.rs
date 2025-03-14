@@ -85,15 +85,7 @@ impl WalletContract {
             return Ok(false); // Channel already exists
         }
 
-        // Sanitize metadata
-        let sanitized_metadata = metadata.is_empty().then(Vec::new).unwrap_or(metadata);
-        let channel = ChannelState {
-            balances: vec![initial_balance],
-            nonce: 0,
-            metadata: sanitized_metadata,
-            merkle_root: [0u8; 32], // Initial Merkle root for the channel
-            proof: None,
-        };
+        let channel = ChannelState::new(channel_id, initial_balance, metadata, &self.params);
 
         self.channels.insert(channel_id, channel);
 
