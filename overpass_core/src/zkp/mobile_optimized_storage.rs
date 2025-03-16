@@ -3,7 +3,7 @@ use crate::zkp::channel::ChannelState;
 /// Local Storage Layer (Level 3)
 /// Hybrid hot/cold storage optimized for mobile devices.
 use crate::zkp::compressed_transaction::CompressedTransaction;
-use crate::zkp::helpers::Bytes32;
+use crate::zkp::helpers::{hash_pair, Bytes32};
 use crate::zkp::state_proof::StateProof;
 use lru::LruCache;
 use std::fmt;
@@ -160,17 +160,6 @@ fn compute_merkle_root_helper(leaves: Vec<[u8; 32]>) -> [u8; 32] {
             .collect();
     }
     current_level[0]
-}
-
-/// Hashes two bytes32 together to form a parent node.
-fn hash_pair(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(&left);
-    hasher.update(&right);
-    let result = hasher.finalize();
-    let mut parent = [0u8; 32];
-    parent.copy_from_slice(&result);
-    parent
 }
 
 impl fmt::Display for StorageError {
