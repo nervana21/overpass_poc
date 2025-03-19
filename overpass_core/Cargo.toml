@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bdk_wallet = "1.0.0"
+miniscript = "12.3.0"
 plonky2 = "1.0.0"
 plonky2_field = "1.0.0"
 rand = { version = "0.8", features = ["getrandom"] }
@@ -22,7 +24,12 @@ tokio = { version = "1.0", features = ["full", "macros"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+sqlx = { version = "0.7", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 anyhow = "1.0"
 thiserror = "1.0"
