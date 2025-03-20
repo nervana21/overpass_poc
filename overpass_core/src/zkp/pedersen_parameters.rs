@@ -56,12 +56,23 @@ impl PedersenParameters {
             .decompress()
             .ok_or_else(|| anyhow!("Invalid g point bytes"))?;
 
+        // Reject the identity element for g
+        if g == RistrettoPoint::default() {
+            return Err(anyhow!("Invalid g point: identity element is not allowed"));
+        }
+
         let h = CompressedRistretto::from_slice(&h_bytes)?
             .decompress()
             .ok_or_else(|| anyhow!("Invalid h point bytes"))?;
 
+        // Reject the identity element for h
+        if h == RistrettoPoint::default() {
+            return Err(anyhow!("Invalid h point: identity element is not allowed"));
+        }
+
         Ok(Self { g, h })
     }
+
     /// Compresses the parameters to bytes
     pub fn to_compressed_bytes(&self) -> (CompressedRistretto, CompressedRistretto) {
         (self.g.compress(), self.h.compress())
@@ -173,5 +184,33 @@ mod tests {
     fn test_invalid_bytes() {
         let result = PedersenParameters::from_compressed_bytes([0u8; 32], [0u8; 32]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_g_point() {
+        // Derive valid h bytes from default parameters.
+        let params = PedersenParameters::default();
+        let (_g_valid, h_valid) = params.to_compressed_bytes();
+
+        // Use [0u8; 32] as an invalid g point.
+        let result = PedersenParameters::from_compressed_bytes([0u8; 32], h_valid.to_bytes());
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Invalid g point"));
+        }
+    }
+
+    #[test]
+    fn test_invalid_h_point() {
+        // Derive valid g bytes from default parameters.
+        let params = PedersenParameters::default();
+        let (g_valid, _h_valid) = params.to_compressed_bytes();
+
+        // Use [0u8; 32] as an invalid h point.
+        let result = PedersenParameters::from_compressed_bytes(g_valid.to_bytes(), [0u8; 32]);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Invalid h point"));
+        }
     }
 }
