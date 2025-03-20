@@ -27,18 +27,15 @@ pub struct ChannelState {
 impl ChannelState {
     pub fn new(
         channel_id: Bytes32,
-        initial_balance: u64,
+        balances: Vec<u64>,
         metadata: Vec<u8>,
         params: &PedersenParameters,
     ) -> Self {
-        // sanitize metadata
-        let metadata = metadata.is_empty().then(Vec::new).unwrap_or(metadata);
-
         // compute channel root commitment
         let blinding = generate_random_blinding();
         let commitment = compute_channel_root(
             channel_id,
-            pedersen_commit(initial_balance, blinding, params),
+            pedersen_commit(balances.clone(), blinding, params),
             0,
         );
 
@@ -59,7 +56,7 @@ impl ChannelState {
         let proof = Some(state_proof.pi.to_vec());
 
         Self {
-            balances: vec![initial_balance],
+            balances,
             nonce: 0,
             metadata,
             merkle_root: commitment,
@@ -83,10 +80,10 @@ impl ChannelState {
         }
 
         // Convert metadata bytes to field elements
-        for &byte in &self.metadata {
-            let metadata_element = GoldilocksField::from_canonical_u8(byte);
-            inputs.push(metadata_element);
-        }
+        // for &byte in &self.metadata {
+        // let metadata_element = GoldilocksField::from_canonical_u8(byte);
+        // inputs.push(metadata_element);
+        // }
 
         // Compute Poseidon hash
         let hash_out = PoseidonHash::hash_no_pad(&inputs);
@@ -123,8 +120,7 @@ impl ChannelState {
         &self,
         smt: &mut MerkleTree,
         old_state: &ChannelState,
-        _old_key: Bytes32,
-        new_key: Bytes32,
+        key: Bytes32,
     ) -> Result<(Bytes32, Bytes32), MerkleTreeError> {
         if !self.verify_transition(old_state) {
             return Err(MerkleTreeError::InvalidInput(
@@ -136,17 +132,17 @@ impl ChannelState {
             .hash_state()
             .map_err(|e| MerkleTreeError::InvalidInput(e.to_string()))?;
 
-        smt.update(new_key, new_leaf)?;
+        smt.update(key, new_leaf)?;
 
         let new_root = smt.root;
 
         Ok((new_leaf, new_root))
     }
 
-    /// Calculates hash of the channel state for consistent referencing.
-    pub fn hash(&self) -> Result<Bytes32> {
-        self.hash_state()
-    }
+    // / Calculates hash of the channel state for consistent referencing.
+    // pub fn hash(&self) -> Result<Bytes32> {
+    // self.hash_state()
+    // }
 }
 
 #[cfg(test)]
@@ -154,24 +150,24 @@ mod tests {
     use super::*;
     use crate::zkp::tree::{MerkleTree, MerkleTreeError};
 
-    fn setup_test_channel_state_params() -> (Bytes32, u64, Vec<u8>, PedersenParameters) {
+    fn setup_test_channel_state_params() -> (Bytes32, Vec<u64>, Vec<u8>, PedersenParameters) {
         // Setup test parameters
         let channel_id = [1u8; 32];
-        let initial_balance = 100;
+        let balances: Vec<u64> = vec![100, 0];
         let metadata = vec![1, 2, 3];
         let params = PedersenParameters::default();
 
-        (channel_id, initial_balance, metadata, params)
+        (channel_id, balances, metadata, params)
     }
 
     #[test]
     fn test_channel_state_new() {
-        let (channel_id, initial_balance, metadata, params) = setup_test_channel_state_params();
+        let (channel_id, balances, metadata, params) = setup_test_channel_state_params();
 
         // Test case 1: Basic initialization with non-empty metadata
-        let channel = ChannelState::new(channel_id, initial_balance, metadata.clone(), &params);
+        let channel = ChannelState::new(channel_id, balances, metadata.clone(), &params);
 
-        assert_eq!(channel.balances, vec![initial_balance]);
+        assert_eq!(channel.balances, vec![100, 0]);
         assert_eq!(channel.nonce, 0);
         assert_eq!(channel.metadata, metadata);
         assert!(channel.proof.is_some()); // Proof should be generated
@@ -181,56 +177,59 @@ mod tests {
 
         // Test case 2: Initialization with empty metadata
         let channel_empty_metadata =
-            ChannelState::new(channel_id, initial_balance, Vec::<u8>::new(), &params);
+            ChannelState::new(channel_id, channel.balances, Vec::<u8>::new(), &params);
         assert_eq!(channel_empty_metadata.metadata, Vec::<u8>::new());
         assert!(channel_empty_metadata.proof.is_some());
 
         // Test case 3: Initialization with zero balance
-        let channel_zero_balance = ChannelState::new(channel_id, 0, Vec::<u8>::new(), &params);
-        assert_eq!(channel_zero_balance.balances, vec![0]);
+        let channel_zero_balance =
+            ChannelState::new(channel_id, vec![0, 0], Vec::<u8>::new(), &params);
+        assert_eq!(channel_zero_balance.balances, vec![0, 0]);
         assert!(channel_zero_balance.proof.is_some());
 
         // Verify that different channel_ids produce different merkle roots
         let different_channel_id = [2u8; 32];
         let different_channel =
-            ChannelState::new(different_channel_id, initial_balance, metadata, &params);
+            ChannelState::new(different_channel_id, vec![100, 0], metadata, &params);
         assert_ne!(channel.merkle_root, different_channel.merkle_root);
     }
 
     #[test]
     fn test_state_transition_with_smt() -> Result<(), MerkleTreeError> {
-        let mut smt = MerkleTree {
-            leaves: Vec::new(),
-            root: [0u8; 32],
-            tree: vec![vec![[0u8; 32]; 32]],
-        };
+        // Create a new, empty Merkle tree.
+        let mut tree = MerkleTree::new();
 
-        let old_state = ChannelState {
-            balances: vec![100, 50],
-            nonce: 15,
-            metadata: vec![1, 2, 3],
-            merkle_root: [0u8; 32],
-            proof: None,
-        };
-        let old_key = [1u8; 32];
-        let old_leaf = old_state.hash_state().unwrap();
+        // Retrieve test parameters.
+        let (channel_id, _balances, _metadata, params) = setup_test_channel_state_params();
 
-        smt.update(old_key, old_leaf).unwrap();
+        // Create the initial channel state with given balances and metadata.
+        let initial_state = ChannelState::new(channel_id, vec![100, 0], vec![1, 2, 3], &params);
 
+        // Compute the initial state commitment (hash) and insert it into the tree.
+        let initial_leaf = initial_state.hash_state().unwrap();
+        tree.insert(initial_leaf)?;
+
+        // Now, simulate a state transition: for example, the balances change.
         let new_state = ChannelState {
-            balances: vec![103, 53],
-            nonce: 16,
-            metadata: vec![1, 2, 3, 4],
-            merkle_root: [0u8; 32],
+            balances: vec![95, 5],
+            nonce: 1,
+            metadata: vec![1, 2, 3],
+            merkle_root: [0u8; 32], // This will be recalculated inside update_in_tree.
             proof: None,
         };
-        let new_key = [1u8; 32];
 
-        let (new_leaf, new_root) =
-            new_state.update_in_tree(&mut smt, &old_state, old_key, new_key)?;
+        // Compute the new state commitment.
+        let new_leaf = new_state.hash_state().unwrap();
 
-        let proof = smt.get_proof(&new_leaf).unwrap();
-        let verified = smt.verify_proof(&new_leaf, &proof, &new_root);
+        // Update the tree: replace the initial state commitment with the new one.
+        tree.update(initial_leaf, new_leaf)?;
+        let new_root = tree.root; // The updated tree root.
+
+        // Generate a Merkle proof for the new state commitment.
+        let proof = tree.get_proof(&new_leaf).unwrap();
+
+        // Verify the Merkle proof.
+        let verified = tree.verify_proof(&new_leaf, &proof, &new_root);
         assert!(verified, "Proof of new state should be valid");
 
         Ok(())

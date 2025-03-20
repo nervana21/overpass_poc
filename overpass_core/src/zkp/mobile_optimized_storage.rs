@@ -50,6 +50,16 @@ impl MobileOptimizedStorage {
         }
     }
 
+    /// Checks whether this MobileOptimizedStorage is empty.
+    /// Returns `true` if active_channels, recent_transactions, transaction_history,
+    /// and channel_roots are all empty.
+    pub fn is_empty(&self) -> bool {
+        self.active_channels.len() == 0
+            && self.recent_transactions.len() == 0
+            && self.transaction_history.is_empty()
+            && self.channel_roots.is_empty()
+    }
+
     /// Stores a transaction, possibly compressing history.
     pub fn store_transaction(
         &mut self,
@@ -173,3 +183,42 @@ impl fmt::Display for StorageError {
 }
 
 impl std::error::Error for StorageError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::zkp::channel::ChannelState;
+    use crate::zkp::helpers::Bytes32;
+    use crate::zkp::pedersen_parameters::PedersenParameters;
+
+    #[test]
+    fn test_mobile_optimized_storage_is_empty_initially() {
+        // Create a new MobileOptimizedStorage instance.
+        let storage = MobileOptimizedStorage::new(100, 30 * 24 * 3600);
+
+        // Verify that all internal collections are empty.
+        assert!(
+            storage.is_empty(),
+            "Storage should be empty after initialization"
+        );
+    }
+
+    #[test]
+    fn test_mobile_optimized_storage_not_empty_after_insertion() {
+        // Create a new MobileOptimizedStorage instance.
+        let mut storage = MobileOptimizedStorage::new(100, 30 * 24 * 3600);
+        let channel_id: Bytes32 = [1u8; 32];
+
+        let params = PedersenParameters::default();
+        let channel_state = ChannelState::new(channel_id, vec![100, 0], vec![1, 2, 3], &params);
+
+        // Insert the dummy channel state into active_channels.
+        storage.active_channels.put(channel_id, channel_state);
+
+        // Verify that the storage is no longer empty.
+        assert!(
+            !storage.is_empty(),
+            "Storage should not be empty after inserting an active channel"
+        );
+    }
+}

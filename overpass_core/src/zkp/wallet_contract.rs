@@ -78,7 +78,7 @@ impl WalletContract {
     pub fn register_channel(
         &mut self,
         channel_id: Bytes32,
-        initial_balance: u64,
+        balances: Vec<u64>,
         _counterparty: Bytes32,
         metadata: Vec<u8>,
     ) -> Result<bool, WalletContractError> {
@@ -86,7 +86,7 @@ impl WalletContract {
             return Ok(false); // Channel already exists
         }
 
-        let channel = ChannelState::new(channel_id, initial_balance, metadata, &self.params);
+        let channel = ChannelState::new(channel_id, balances, metadata, &self.params);
 
         self.channels.insert(channel_id, channel);
 
@@ -103,7 +103,7 @@ impl WalletContract {
             .iter()
             .map(|(channel_id, channel_state)| {
                 let channel_hash = channel_state
-                    .hash()
+                    .hash_state()
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 Ok::<(Bytes32, Bytes32), WalletContractError>((*channel_id, channel_hash))
             })
@@ -123,14 +123,14 @@ impl WalletContract {
     pub fn update_channel_local(
         &mut self,
         channel_id: Bytes32,
-        new_balance: u64,
+        new_balance: Vec<u64>,
         metadata: Vec<u8>,
     ) -> Result<bool, WalletContractError> {
         // Retrieve the current channel state.
         let (_old_channel_merkle_root, old_commitment_hash) = match self.channels.get(&channel_id) {
             Some(channel) => {
                 let hash = channel
-                    .hash()
+                    .hash_state()
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 (channel.merkle_root, hash)
             }
@@ -146,11 +146,11 @@ impl WalletContract {
 
         // Generate new commitment based on the new balance.
         let blinding = generate_random_blinding();
-        let new_commitment = pedersen_commit(new_balance, blinding, &self.params);
+        let new_commitment = pedersen_commit(new_balance.clone(), blinding, &self.params);
 
         // Update the channel's local state.
         if let Some(channel) = self.channels.get_mut(&channel_id) {
-            channel.balances = vec![new_balance];
+            channel.balances = new_balance;
             channel.nonce += 1;
             channel.metadata = metadata;
             channel.merkle_root = new_commitment;
@@ -284,12 +284,12 @@ mod tests {
         let channel_id = [2u8; 32];
 
         // Register new channel
-        let result = wallet.register_channel(channel_id, 100, [0u8; 32], vec![1, 2, 3])?;
+        let result = wallet.register_channel(channel_id, vec![100, 0], [0u8; 32], vec![1, 2, 3])?;
         assert!(result);
         assert!(wallet.has_channel(&channel_id));
 
         // Try registering same channel again
-        let result = wallet.register_channel(channel_id, 200, [0u8; 32], vec![4, 5, 6])?;
+        let result = wallet.register_channel(channel_id, vec![200, 0], [0u8; 32], vec![4, 5, 6])?;
         assert!(!result);
 
         Ok(())
@@ -301,15 +301,15 @@ mod tests {
         let channel_id = [2u8; 32];
 
         // Register channel
-        wallet.register_channel(channel_id, 100, [0u8; 32], vec![1, 2, 3])?;
+        wallet.register_channel(channel_id, vec![100, 0], [0u8; 32], vec![1, 2, 3])?;
 
         // Update channel
-        let result = wallet.update_channel_local(channel_id, 150, vec![4, 5, 6])?;
+        let result = wallet.update_channel_local(channel_id, vec![95, 0], vec![4, 5, 6])?;
         assert!(result);
 
         // Verify update
         let channel = wallet.get_channel(&channel_id).unwrap();
-        assert_eq!(channel.balances[0], 150);
+        assert_eq!(channel.balances, vec![95, 0]);
         assert_eq!(channel.metadata, vec![4, 5, 6]);
         assert_eq!(channel.nonce, 1);
 
@@ -323,7 +323,7 @@ mod tests {
 
         // Register multiple channels
         for &id in &channel_ids {
-            wallet.register_channel(id, 100, [0u8; 32], vec![1, 2, 3])?;
+            wallet.register_channel(id, vec![100, 0], [0u8; 32], vec![1, 2, 3])?;
         }
 
         let listed_channels = wallet.list_channels();
@@ -347,7 +347,7 @@ mod tests {
 
         // Register multiple channels in the wallet.
         for &id in &channel_ids {
-            wallet.register_channel(id, 100, [0u8; 32], vec![1, 2, 3])?;
+            wallet.register_channel(id, vec![100, 0], [0u8; 32], vec![1, 2, 3])?;
         }
 
         // Update the Merkle root for the wallet.
@@ -362,7 +362,7 @@ mod tests {
             .map(|id| {
                 let channel_state = wallet.get_channel(id).expect("Channel should exist");
                 let channel_hash = channel_state
-                    .hash()
+                    .hash_state()
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 Ok((*id, channel_hash))
             })

@@ -26,8 +26,13 @@ pub fn generate_random_blinding() -> Bytes32 {
 }
 
 /// Computes Pedersen commitment.
-pub fn pedersen_commit(value: u64, blinding: Bytes32, hparams: &PedersenParameters) -> Bytes32 {
-    let value_scalar = Scalar::from(value);
+pub fn pedersen_commit(
+    value: Vec<u64>,
+    blinding: Bytes32,
+    hparams: &PedersenParameters,
+) -> Bytes32 {
+    let total: u64 = value.iter().sum();
+    let value_scalar = Scalar::from(total);
     let blinding_scalar = Scalar::from_bytes_mod_order(blinding);
     let commitment = hparams.g * value_scalar + hparams.h * blinding_scalar;
     hash_point(commitment)
@@ -61,12 +66,32 @@ pub fn compute_channel_root(channel_id: Bytes32, commitment: Bytes32, nonce: u64
     root
 }
 
-/// Computes Merkle root from list of leaves.
+/// Computes Merkle root from a list of leaves.
 pub fn compute_merkle_root(leaves: Vec<Bytes32>) -> Bytes32 {
     if leaves.is_empty() {
         return [0u8; 32];
     }
-    let mut current_level = leaves;
+    let mut current_level: Vec<Bytes32> = leaves;
+    while current_level.len() > 1 {
+        // If odd number of nodes, duplicate the last one.
+        if current_level.len() % 2 != 0 {
+            current_level.push(*current_level.last().unwrap());
+        }
+        current_level = current_level
+            .chunks(2)
+            .map(|pair| hash_pair(pair[0], pair[1]))
+            .collect::<Vec<Bytes32>>();
+    }
+    current_level[0]
+}
+
+/// Computes the global Merkle root from a sorted slice of leaves.
+/// If the slice is empty, returns the default zeroed root.
+pub fn compute_global_root_from_sorted(sorted_hashes: &[Bytes32]) -> Bytes32 {
+    if sorted_hashes.is_empty() {
+        return [0u8; 32];
+    }
+    let mut current_level = sorted_hashes.to_vec();
     while current_level.len() > 1 {
         if current_level.len() % 2 != 0 {
             current_level.push(*current_level.last().unwrap());
@@ -241,10 +266,10 @@ mod tests {
     #[test]
     fn test_pedersen_commit() {
         let params = PedersenParameters::default();
-        let value = 100u64;
+        let value = vec![100, 0];
         let blinding = generate_random_blinding();
 
-        let commitment = pedersen_commit(value, blinding, &params);
+        let commitment = pedersen_commit(value.clone(), blinding, &params);
         assert_eq!(commitment.len(), 32);
 
         // Same inputs should produce same commitment

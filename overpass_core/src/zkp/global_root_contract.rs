@@ -44,6 +44,7 @@ impl From<anyhow::Error> for GlobalRootContractError {
     }
 }
 
+#[derive(Debug)]
 /// Global Root Contract manages wallet roots and their proofs.
 pub struct GlobalRootContract {
     wallet_roots: HashMap<Bytes32, Bytes32>,
@@ -93,14 +94,14 @@ impl GlobalRootContract {
     pub fn register_wallet(
         &mut self,
         wallet_id: Bytes32,
-        merkle_root: Bytes32,
+        wallet_merkle_root: Bytes32,
     ) -> Result<(), GlobalRootContractError> {
         if self.wallet_roots.contains_key(&wallet_id) {
             return Err(GlobalRootContractError::WalletAlreadyRegistered);
         }
 
-        self.wallet_roots.insert(wallet_id, merkle_root);
-        self.merkle_tree.insert(merkle_root)?;
+        self.wallet_roots.insert(wallet_id, wallet_merkle_root);
+        self.merkle_tree.insert(wallet_merkle_root)?;
 
         match compute_global_root(&self.wallet_roots) {
             Ok(root) => {
@@ -115,7 +116,7 @@ impl GlobalRootContract {
     pub fn update_wallet(
         &mut self,
         wallet_id: Bytes32,
-        _merkle_root: Bytes32,
+        wallet_root_update: Bytes32,
         proof: state_proof::StateProof, // Use fully qualified type
     ) -> Result<(), GlobalRootContractError> {
         let old_root = self
@@ -132,19 +133,14 @@ impl GlobalRootContract {
             params: self.params.clone(),
         };
 
-        if !verify_wallet_proof(
-            &old_root,
-            &proof.public_inputs[0],
-            &helper_proof,
-            &self.params,
-        ) {
+        if !verify_wallet_proof(&old_root, &wallet_root_update, &helper_proof, &self.params) {
             return Err(GlobalRootContractError::ProofVerificationFailed);
         }
 
-        self.wallet_roots.insert(wallet_id, proof.public_inputs[0]);
+        self.wallet_roots.insert(wallet_id, wallet_root_update);
 
         self.merkle_tree
-            .update(old_root, proof.public_inputs[0])
+            .update(old_root, wallet_root_update)
             .map_err(GlobalRootContractError::from)?;
 
         match compute_global_root(&self.wallet_roots) {
@@ -181,13 +177,13 @@ impl GlobalRootContract {
         &self,
         wallet_id: Bytes32,
     ) -> Result<Vec<Bytes32>, GlobalRootContractError> {
-        let root = self
+        let wallet_merkle_root = self
             .wallet_roots
             .get(&wallet_id)
             .ok_or(GlobalRootContractError::WalletNotFound)?;
 
         self.merkle_tree
-            .get_proof(root)
+            .get_proof(wallet_merkle_root)
             .ok_or(GlobalRootContractError::ProofVerificationFailed)
     }
 
@@ -210,6 +206,7 @@ impl GlobalRootContract {
 
 #[cfg(test)]
 mod tests {
+    use super::helpers::generate_state_proof;
     use super::*;
 
     fn setup_test_contract() -> GlobalRootContract {
@@ -218,19 +215,37 @@ mod tests {
     }
 
     #[test]
+    fn test_new_global_root_contract() -> Result<(), GlobalRootContractError> {
+        let contract = setup_test_contract();
+
+        assert!(contract.wallet_roots.is_empty());
+        assert!(contract.latest_proofs.is_empty());
+        assert_eq!(contract.merkle_root, [0u8; 32]);
+        assert!(contract.merkle_tree.leaves.is_empty());
+        assert_eq!(contract.merkle_tree.root, [0u8; 32]);
+        assert!(contract.merkle_tree.tree.is_empty());
+
+        // dbg!(contract);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_register_wallet() -> Result<(), GlobalRootContractError> {
         let mut contract = setup_test_contract();
         let wallet_id = [1u8; 32];
-        let merkle_root = [2u8; 32];
+        let wallet_merkle_root = [2u8; 32];
 
-        // Register new wallet
-        contract.register_wallet(wallet_id, merkle_root)?;
+        contract.register_wallet(wallet_id, wallet_merkle_root)?;
 
         assert!(contract.wallet_roots.contains_key(&wallet_id));
-        assert_eq!(contract.get_wallet_root(&wallet_id), Some(merkle_root));
+        assert_eq!(
+            contract.get_wallet_root(&wallet_id),
+            Some(wallet_merkle_root)
+        );
 
         // Try registering same wallet again
-        let result = contract.register_wallet(wallet_id, merkle_root);
+        let result = contract.register_wallet(wallet_id, wallet_merkle_root);
         assert!(matches!(
             result,
             Err(GlobalRootContractError::WalletAlreadyRegistered)
@@ -240,12 +255,57 @@ mod tests {
     }
 
     #[test]
+    fn test_update_wallet() -> Result<(), GlobalRootContractError> {
+        let mut contract = setup_test_contract();
+        let wallet_id = [1u8; 32];
+        let init_wallet_state_commitment = [2u8; 32];
+
+        contract.register_wallet(wallet_id, init_wallet_state_commitment)?;
+
+        // Create a mock proof
+        let new_commitment = [3u8; 32];
+        let new_global_merkle_root = [4u8; 32];
+        let mock_proof = StateProof {
+            pi: generate_state_proof(
+                init_wallet_state_commitment,
+                new_commitment,
+                new_global_merkle_root,
+                &contract.params,
+            )
+            .pi,
+            public_inputs: vec![
+                init_wallet_state_commitment,
+                new_commitment,
+                new_global_merkle_root,
+            ],
+            timestamp: helpers::current_timestamp(),
+        };
+
+        // Update wallet with new root and proof
+        contract.update_wallet(wallet_id, new_commitment, mock_proof.clone())?;
+
+        // Verify the update
+        assert_eq!(contract.get_wallet_root(&wallet_id), Some(new_commitment));
+
+        // Test updating non-existent wallet
+        let invalid_wallet = [22u8; 32];
+        let invalid_result =
+            contract.update_wallet(invalid_wallet, new_global_merkle_root, mock_proof.clone());
+        assert!(matches!(
+            invalid_result,
+            Err(GlobalRootContractError::WalletNotFound)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_generate_and_verify_proof() -> Result<(), GlobalRootContractError> {
         let mut contract = setup_test_contract();
         let wallet_id = [1u8; 32];
-        let merkle_root = [2u8; 32];
+        let wallet_merkle_root = [2u8; 32];
 
-        contract.register_wallet(wallet_id, merkle_root)?;
+        contract.register_wallet(wallet_id, wallet_merkle_root)?;
 
         let proof = contract.generate_proof(wallet_id)?;
         assert!(contract.verify_proof(wallet_id, &proof)?);
