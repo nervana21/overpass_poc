@@ -261,6 +261,13 @@ impl MerkleTree {
         computed_hash == *root
     }
 }
+
+impl Default for MerkleTree {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Represents a Merkle proof.
 #[derive(Debug, Clone)]
 pub struct MerkleProof {

@@ -97,7 +97,7 @@ impl MobileOptimizedStorage {
         // Add to transaction history
         self.transaction_history
             .entry(channel_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(compressed_tx);
 
         Ok(())
@@ -119,7 +119,7 @@ impl MobileOptimizedStorage {
             // Add to history
             self.transaction_history
                 .entry(channel_id)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(compressed);
         }
         Ok(())

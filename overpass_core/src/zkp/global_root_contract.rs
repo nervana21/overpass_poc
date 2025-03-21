@@ -119,15 +119,20 @@ impl GlobalRootContract {
         wallet_root_update: Bytes32,
         proof: state_proof::StateProof, // Use fully qualified type
     ) -> Result<(), GlobalRootContractError> {
-        let old_root = self
+        // let old_root = self
+        // .wallet_roots
+        // .get(&wallet_id)
+        // .ok_or(GlobalRootContractError::WalletNotFound)?
+        // .clone();
+
+        let old_root = *self
             .wallet_roots
             .get(&wallet_id)
-            .ok_or(GlobalRootContractError::WalletNotFound)?
-            .clone();
+            .ok_or(GlobalRootContractError::WalletNotFound)?;
 
         // Convert state_proof::StateProof to helpers::StateProof for verification
         let helper_proof = helpers::StateProof {
-            pi: proof.pi.clone(),
+            pi: proof.pi,
             public_inputs: proof.public_inputs.clone(),
             timestamp: proof.timestamp,
             params: self.params.clone(),
