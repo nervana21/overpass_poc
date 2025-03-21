@@ -105,34 +105,45 @@ impl OverpassDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Result;
+    use std::env;
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+    use uuid::Uuid;
 
-    const TEST_DB_PATH: &str = "./test_db";
-
-    fn setup_db() -> Result<OverpassDB> {
-        // Ensure a clean state for tests
-        if Path::new(TEST_DB_PATH).exists() {
-            fs::remove_dir_all(TEST_DB_PATH).expect("Failed to clean up test database directory");
-        }
-        OverpassDB::new(TEST_DB_PATH)
+    /// Sets up a new OverpassDB instance in a unique temporary directory.
+    /// Returns a tuple of (OverpassDB, PathBuf) where the PathBuf is the unique database path.
+    fn setup_db() -> Result<(OverpassDB, PathBuf)> {
+        // Get the system temporary directory.
+        let mut temp_dir = env::temp_dir();
+        // Create a unique subdirectory using a UUID.
+        let unique_dir = format!("overpass_db_{}", Uuid::new_v4());
+        temp_dir.push(unique_dir);
+        fs::create_dir_all(&temp_dir).context("Failed to create unique temporary directory")?;
+        // Append "db" to form the database path.
+        let db_path = temp_dir.join("db");
+        // Convert the db_path to a string.
+        let db_path_str = db_path
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid database path"))?;
+        let db = OverpassDB::new(db_path_str)?;
+        Ok((db, temp_dir))
     }
 
-    fn teardown_db() {
-        if Path::new(TEST_DB_PATH).exists() {
-            fs::remove_dir_all(TEST_DB_PATH).expect("Failed to clean up test database directory");
+    /// Tears down the test database directory.
+    fn teardown_db(db_dir: &Path) {
+        if db_dir.exists() {
+            fs::remove_dir_all(db_dir).expect("Failed to remove test database directory");
         }
     }
 
     #[test]
     fn test_put_get_delete() -> Result<()> {
-        let db = setup_db()?;
+        let (db, temp_dir) = setup_db()?;
 
-        // Test put operation with error handling
         db.put(b"key1", b"value1")?;
         db.put(b"key2", b"value2")?;
 
-        // Test get operation with error handling and value verification
         let get_result1 = db.get(b"key1")?;
         let get_result2 = db.get(b"key2")?;
         let get_result3 = db.get(b"key3")?;
@@ -149,7 +160,6 @@ mod tests {
         );
         assert_eq!(get_result3, None, "Non-existent key should return None");
 
-        // Test delete operation with error handling and value verification
         let delete_result = db.delete(b"key1")?;
         assert_eq!(
             delete_result,
@@ -157,14 +167,12 @@ mod tests {
             "Incorrect deleted value"
         );
 
-        // Verify deletion
         let get_after_delete = db.get(b"key1")?;
         assert_eq!(
             get_after_delete, None,
             "Key should not exist after deletion"
         );
 
-        // Test overwriting existing key
         db.put(b"key2", b"new_value2")?;
         let updated_value = db.get(b"key2")?;
         assert_eq!(
@@ -173,44 +181,39 @@ mod tests {
             "Value not updated correctly"
         );
 
-        teardown_db();
+        // Teardown the temporary directory.
+        teardown_db(temp_dir.as_path());
         Ok(())
     }
 
     #[test]
     fn test_scan() -> Result<()> {
-        let db = setup_db()?;
+        let (db, temp_dir) = setup_db()?;
 
-        // Insert test data
         db.put(b"key1", b"value1")?;
         db.put(b"key2", b"value2")?;
         db.put(b"key3", b"value3")?;
 
-        // Test scanning range
         let scanned = db.scan(b"key1", b"key3")?;
         assert_eq!(scanned.len(), 2);
         assert_eq!(scanned[0], (b"key1".to_vec(), b"value1".to_vec()));
         assert_eq!(scanned[1], (b"key2".to_vec(), b"value2".to_vec()));
 
-        teardown_db();
+        teardown_db(temp_dir.as_path());
         Ok(())
     }
 
     #[test]
     fn test_flush() -> Result<()> {
-        let db = setup_db()?;
+        let (db, temp_dir) = setup_db()?;
 
-        // Insert some data
         db.put(b"key", b"value")?;
-
-        // Flush changes to disk
         db.flush()?;
 
-        // Verify data persists
         let value = db.get(b"key")?;
         assert_eq!(value, Some(b"value".to_vec()));
 
-        teardown_db();
+        teardown_db(temp_dir.as_path());
         Ok(())
     }
 }
