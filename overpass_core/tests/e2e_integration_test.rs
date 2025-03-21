@@ -139,21 +139,20 @@ fn test_e2e_integration() -> Result<()> {
     println!("\n=== Creating Channel States ===\n");
 
     let initial_state = ChannelState {
-        balances: vec![100, 50], // Initial balances
-        nonce: 0,                // Initial nonce
+        balances: vec![100, 50],
+        nonce: 0,
         metadata: vec![],
-        merkle_root: [0u8; 32], // Placeholder value
+        merkle_root: [0u8; 32], // Placeholder – will be recalculated upon hashing.
         proof: None,
     };
     println!("Initial state created: {:?}", initial_state);
 
-    // Generate transition data
+    // Generate transition data (delta_balance_0 = -3, delta_balance_1 = +3, delta_nonce = +1).
     println!("\n=== Generating Transition Data ===\n");
-
     let mut transition_data = [0u8; 32];
-    transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes()); // delta_balance_0 = -3
-    transition_data[4..8].copy_from_slice(&3i32.to_le_bytes()); // delta_balance_1 = +3
-    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes()); // delta_nonce = +1
+    transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());
+    transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());
+    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());
 
     println!("Transition data: {:?}", transition_data);
     println!(
@@ -201,17 +200,14 @@ fn test_e2e_integration() -> Result<()> {
         .get_proof(&next_state_bytes)
         .ok_or(anyhow!("Failed to generate Merkle proof"))?;
     println!("Merkle proof generated successfully");
-
-    // Verify Merkle proof
-    println!("Merkle proof verification started");
-    println!("Root: {:?}", smt.root);
+    println!("Merkle tree root: {:?}", smt.root);
 
     if !smt.verify_proof(&next_state_bytes, &merkle_proof, &smt.root) {
         return Err(anyhow!("Merkle proof verification failed"));
     }
     println!("Merkle proof verified successfully");
 
-    // Build and send OP_RETURN transaction
+    // Build and send an OP_RETURN transaction embedding the next state hash.
     println!("\n=== Building and Sending OP_RETURN Transaction ===\n");
     let raw_tx_hex = build_op_return_transaction(&mut client, next_state_bytes)?;
     let txid = client.send_raw_transaction_hex(&raw_tx_hex)?;
