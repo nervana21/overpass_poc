@@ -7,4 +7,5 @@ Cargo.lock
 **/.env
 **/.env.local
 **/pkg
-overpass_core/log/log.txt
+overpass_core/log/*.txt
+**/.DS_Store
