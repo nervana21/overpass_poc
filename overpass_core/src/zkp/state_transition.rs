@@ -217,21 +217,10 @@ impl Default for StateTransitionCircuit {
 }
 
 /// Applies transition data to the initial state to produce the next state.
-fn apply_transition(
+pub fn apply_transition(
     initial_state: &ChannelState,
     transition_data: &[u8; 32],
 ) -> Result<ChannelState> {
-    // Example transition logic:
-    // - Update balances
-    // - Increment nonce
-    // - Update metadata if necessary
-
-    // For demonstration, we'll assume transition_data encodes:
-    // - delta_balance_0: i32 (4 bytes)
-    // - delta_balance_1: i32 (4 bytes)
-    // - delta_nonce: i32 (4 bytes)
-    // The rest of the bytes are unused.
-
     let delta_balance_0 = i32::from_le_bytes(
         transition_data[0..4]
             .try_into()
@@ -242,48 +231,51 @@ fn apply_transition(
             .try_into()
             .context("Failed to parse delta_balance_1")?,
     );
-    let delta_nonce = i32::from_le_bytes(
-        transition_data[8..12]
-            .try_into()
-            .context("Failed to parse delta_nonce")?,
-    );
 
-    // Apply deltas to balances and nonce
-    let new_balance_0 = initial_state
+    let initial_balance_0 = initial_state
         .balances
         .get(0)
         .ok_or_else(|| anyhow!("Missing balance 0"))?
-        .checked_add_signed(delta_balance_0 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
-    let new_balance_1 = initial_state
+        .to_owned() as i64;
+    let initial_balance_1 = initial_state
         .balances
         .get(1)
         .ok_or_else(|| anyhow!("Missing balance 1"))?
-        .checked_add_signed(delta_balance_1 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
-    let new_nonce = if delta_nonce >= 0 {
-        initial_state
-            .nonce
-            .checked_add(delta_nonce as u64)
-            .ok_or_else(|| anyhow!("Nonce overflow"))?
-    } else {
-        initial_state
-            .nonce
-            .checked_sub((-delta_nonce) as u64)
-            .ok_or_else(|| anyhow!("Nonce underflow"))?
-    };
+        .to_owned() as i64;
 
-    // Create the new state
+    let new_balance_0 = initial_balance_0
+        .checked_add(delta_balance_0 as i64)
+        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
+    let new_balance_1 = initial_balance_1
+        .checked_add(delta_balance_1 as i64)
+        .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
+
+    if new_balance_0 < 0 || new_balance_1 < 0 {
+        anyhow::bail!("Negative balance is not allowed");
+    }
+
+    // nonce increases by 1
+    let new_nonce = initial_state
+        .nonce
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("Nonce overflow"))?;
+
     let mut new_state = ChannelState {
-        balances: vec![new_balance_0, new_balance_1],
+        balances: vec![
+            new_balance_0
+                .try_into()
+                .context("Failed to convert balance 0")?,
+            new_balance_1
+                .try_into()
+                .context("Failed to convert balance 1")?,
+        ],
         nonce: new_nonce,
         metadata: initial_state.metadata.clone(),
-        merkle_root: [0u8; 32], // Placeholder, will be updated after hashing
-        proof: initial_state.proof.clone(),
+        merkle_root: [0u8; 32],
+        proof: None,
     };
 
-    // Compute the new merkle_root based on the updated state
-    new_state.merkle_root = hash_state(&new_state).context("Failed to compute new merkle_root")?;
+    new_state.merkle_root = hash_state(&new_state)?;
 
     Ok(new_state)
 }

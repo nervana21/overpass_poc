@@ -1,75 +1,12 @@
 // overpass_core/tests/e2e_integration_test.rs
 
-use anyhow::{anyhow, Context, Result}; // Ensure Context is imported
+use anyhow::{anyhow, Result};
 use bitcoin::Network;
 use overpass_core::zkp::helpers::{build_op_return_transaction, hash_state};
+use overpass_core::zkp::state_transition::apply_transition;
 use overpass_core::zkp::{
     bitcoin_ephemeral_state::BitcoinClient, channel::ChannelState, tree::MerkleTree,
 };
-
-/// Applies transition data to the initial state to produce the next state.
-fn apply_transition(
-    initial_state: &ChannelState,
-    transition_data: &[u8; 32],
-) -> Result<ChannelState> {
-    let delta_balance_0 = i32::from_le_bytes(
-        transition_data[0..4]
-            .try_into()
-            .context("Failed to parse delta_balance_0")?,
-    );
-    let delta_balance_1 = i32::from_le_bytes(
-        transition_data[4..8]
-            .try_into()
-            .context("Failed to parse delta_balance_1")?,
-    );
-
-    let initial_balance_0 = initial_state
-        .balances
-        .get(0)
-        .ok_or_else(|| anyhow!("Missing balance 0"))?
-        .to_owned() as i64;
-    let initial_balance_1 = initial_state
-        .balances
-        .get(1)
-        .ok_or_else(|| anyhow!("Missing balance 1"))?
-        .to_owned() as i64;
-
-    let new_balance_0 = initial_balance_0
-        .checked_add(delta_balance_0 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
-    let new_balance_1 = initial_balance_1
-        .checked_add(delta_balance_1 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
-
-    if new_balance_0 < 0 || new_balance_1 < 0 {
-        anyhow::bail!("Negative balance is not allowed");
-    }
-
-    // nonce increases by 1
-    let new_nonce = initial_state
-        .nonce
-        .checked_add(1)
-        .ok_or_else(|| anyhow!("Nonce overflow"))?;
-
-    let mut new_state = ChannelState {
-        balances: vec![
-            new_balance_0
-                .try_into()
-                .context("Failed to convert balance 0")?,
-            new_balance_1
-                .try_into()
-                .context("Failed to convert balance 1")?,
-        ],
-        nonce: new_nonce,
-        metadata: initial_state.metadata.clone(),
-        merkle_root: [0u8; 32],
-        proof: None,
-    };
-
-    new_state.merkle_root = hash_state(&new_state)?;
-
-    Ok(new_state)
-}
 
 #[test]
 fn test_e2e_integration() -> Result<()> {
