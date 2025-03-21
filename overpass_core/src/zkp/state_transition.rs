@@ -21,7 +21,7 @@ use plonky2::{
 use plonky2_field::types::{Field, PrimeField64};
 use std::collections::HashMap;
 
-use super::helpers::hash_state;
+use super::helpers::{compute_channel_root, hash_state};
 
 /// Type alias for Poseidon configuration
 type PoseidonConfig = PoseidonGoldilocksConfig;
@@ -86,12 +86,13 @@ impl StateTransitionCircuit {
     /// Generates a zero-knowledge proof for a state transition.
     pub fn generate_zkp(
         &self,
+        channel_id: [u8; 32],
         initial_state: &ChannelState,
         transition_data: &[u8; 32],
     ) -> Result<ProofWithPublicInputs<GoldilocksField, PoseidonConfig, 2>> {
         let mut pw = PartialWitness::new();
-        // Compute next state by applying transition data to initial state
-        let next_state = apply_transition(initial_state, transition_data)
+
+        let next_state = apply_transition(channel_id, initial_state, transition_data)
             .context("Failed to apply transition to initial state")?;
 
         // Serialize and hash the initial and next states
@@ -218,6 +219,7 @@ impl Default for StateTransitionCircuit {
 
 /// Applies transition data to the initial state to produce the next state.
 pub fn apply_transition(
+    channel_id: [u8; 32],
     initial_state: &ChannelState,
     transition_data: &[u8; 32],
 ) -> Result<ChannelState> {
@@ -235,26 +237,29 @@ pub fn apply_transition(
     let initial_balance_0 = initial_state
         .balances
         .get(0)
-        .ok_or_else(|| anyhow!("Missing balance 0"))?
-        .to_owned() as i64;
+        .copied()
+        .ok_or_else(|| anyhow!("Missing balance 0"))? as i64;
+
     let initial_balance_1 = initial_state
         .balances
         .get(1)
-        .ok_or_else(|| anyhow!("Missing balance 1"))?
-        .to_owned() as i64;
+        .copied()
+        .ok_or_else(|| anyhow!("Missing balance 1"))? as i64;
 
     let new_balance_0 = initial_balance_0
         .checked_add(delta_balance_0 as i64)
         .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
+
     let new_balance_1 = initial_balance_1
         .checked_add(delta_balance_1 as i64)
         .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
 
+    // Ensure non-negative balances
     if new_balance_0 < 0 || new_balance_1 < 0 {
         anyhow::bail!("Negative balance is not allowed");
     }
 
-    // nonce increases by 1
+    // Increment nonce strictly by +1
     let new_nonce = initial_state
         .nonce
         .checked_add(1)
@@ -275,7 +280,11 @@ pub fn apply_transition(
         proof: None,
     };
 
-    new_state.merkle_root = hash_state(&new_state)?;
+    new_state.merkle_root = compute_channel_root(
+        channel_id,
+        hash_state(&new_state)?, // Commitment hash based on updated state
+        new_nonce,
+    );
 
     Ok(new_state)
 }
