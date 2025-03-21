@@ -1,66 +1,17 @@
+// overpass_core/tests/e2e_integration_test.rs
+
 use anyhow::{anyhow, Context, Result}; // Ensure Context is imported
 use bitcoin::Network;
+use overpass_core::zkp::helpers::hash_state;
 use overpass_core::zkp::{
     bitcoin_ephemeral_state::BitcoinClient, channel::ChannelState, tree::MerkleTree,
 };
-use plonky2::plonk::config::Hasher;
-use plonky2_field::goldilocks_field::GoldilocksField;
-use plonky2_field::types::{Field, PrimeField64};
-
-/// Converts a ChannelState into a 32-byte hash using PoseidonHash.
-fn hash_state(state: &ChannelState) -> Result<[u8; 32]> {
-    use plonky2::hash::poseidon::PoseidonHash;
-
-    println!("Hashing state:");
-    println!("  Balances: {:?}", state.balances);
-    println!("  Nonce: {}", state.nonce);
-    println!("  Metadata length: {}", state.metadata.len());
-
-    // Convert ChannelState fields to field elements
-    let mut inputs = Vec::new();
-
-    // Serialize balances
-    for &balance in &state.balances {
-        let field_element = GoldilocksField::from_canonical_u64(balance);
-        println!("  Balance field element: {:?}", field_element);
-        inputs.push(field_element);
-    }
-
-    // Serialize nonce
-    let nonce_element = GoldilocksField::from_canonical_u64(state.nonce);
-    println!("  Nonce field element: {:?}", nonce_element);
-    inputs.push(nonce_element);
-
-    // Serialize metadata
-    for &byte in &state.metadata {
-        let metadata_element = GoldilocksField::from_canonical_u8(byte);
-        println!("  Metadata field element: {:?}", metadata_element);
-        inputs.push(metadata_element);
-    }
-
-    println!("Total input elements: {}", inputs.len());
-
-    // Compute Poseidon hash
-    let hash_out = PoseidonHash::hash_no_pad(&inputs);
-    println!("Hash elements: {:?}", hash_out.elements);
-
-    // Convert to bytes
-    let mut bytes = [0u8; 32];
-    for (i, &element) in hash_out.elements.iter().enumerate() {
-        let elem_u64 = element.to_canonical_u64();
-        bytes[i * 8..(i + 1) * 8].copy_from_slice(&elem_u64.to_le_bytes());
-    }
-
-    println!("Final hash bytes: {:?}", bytes);
-    Ok(bytes)
-}
 
 /// Applies transition data to the initial state to produce the next state.
 fn apply_transition(
     initial_state: &ChannelState,
     transition_data: &[u8; 32],
 ) -> Result<ChannelState> {
-    // Extract delta_balance_0, delta_balance_1, delta_nonce from transition_data
     let delta_balance_0 = i32::from_le_bytes(
         transition_data[0..4]
             .try_into()
@@ -71,40 +22,50 @@ fn apply_transition(
             .try_into()
             .context("Failed to parse delta_balance_1")?,
     );
-    let delta_nonce = i32::from_le_bytes(
-        transition_data[8..12]
-            .try_into()
-            .context("Failed to parse delta_nonce")?,
-    );
 
-    // Apply deltas to balances and nonce
-    let new_balance_0 = initial_state
+    let initial_balance_0 = initial_state
         .balances
         .get(0)
         .ok_or_else(|| anyhow!("Missing balance 0"))?
-        .checked_add_signed(delta_balance_0 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
-    let new_balance_1 = initial_state
+        .to_owned() as i64;
+    let initial_balance_1 = initial_state
         .balances
         .get(1)
         .ok_or_else(|| anyhow!("Missing balance 1"))?
-        .checked_add_signed(delta_balance_1 as i64)
+        .to_owned() as i64;
+
+    let new_balance_0 = initial_balance_0
+        .checked_add(delta_balance_0 as i64)
+        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
+    let new_balance_1 = initial_balance_1
+        .checked_add(delta_balance_1 as i64)
         .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
+
+    if new_balance_0 < 0 || new_balance_1 < 0 {
+        anyhow::bail!("Negative balance is not allowed");
+    }
+
+    // nonce increases by 1
     let new_nonce = initial_state
         .nonce
-        .checked_add(delta_nonce as u64)
+        .checked_add(1)
         .ok_or_else(|| anyhow!("Nonce overflow"))?;
 
-    // Create the new state
     let mut new_state = ChannelState {
-        balances: vec![new_balance_0 as u64, new_balance_1 as u64],
+        balances: vec![
+            new_balance_0
+                .try_into()
+                .context("Failed to convert balance 0")?,
+            new_balance_1
+                .try_into()
+                .context("Failed to convert balance 1")?,
+        ],
         nonce: new_nonce,
         metadata: initial_state.metadata.clone(),
-        merkle_root: [0u8; 32], // Placeholder, will be updated after hashing
+        merkle_root: [0u8; 32],
         proof: None,
     };
 
-    // Compute the new merkle_root based on the updated state
     new_state.merkle_root = hash_state(&new_state)?;
 
     Ok(new_state)
@@ -137,17 +98,16 @@ fn test_e2e_integration() -> Result<()> {
 
     // Define channel states
     println!("\n=== Creating Channel States ===\n");
-
     let initial_state = ChannelState {
         balances: vec![100, 50],
         nonce: 0,
         metadata: vec![],
-        merkle_root: [0u8; 32], // Placeholder – will be recalculated upon hashing.
+        merkle_root: [0u8; 32],
         proof: None,
     };
     println!("Initial state created: {:?}", initial_state);
 
-    // Generate transition data (delta_balance_0 = -3, delta_balance_1 = +3, delta_nonce = +1).
+    // Generate transition data
     println!("\n=== Generating Transition Data ===\n");
     let mut transition_data = [0u8; 32];
     transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());
@@ -164,28 +124,25 @@ fn test_e2e_integration() -> Result<()> {
         i32::from_le_bytes(transition_data[4..8].try_into().unwrap())
     );
     println!(
-        "Delta nonce: {}",
+        "Nonce: {}",
         i32::from_le_bytes(transition_data[8..12].try_into().unwrap())
     );
 
     // Apply transition to get the next state
-    println!("\n=== Applying Transition ===\n");
+    println!("\n=== Applying Transition ===");
     let next_state = apply_transition(&initial_state, &transition_data)?;
     println!("Next state created: {:?}", next_state);
 
     // Compute state hashes
-    println!("\n=== Computing State Hashes ===\n");
-
+    println!("\n=== Computing State Hashes ===");
     let initial_state_bytes = hash_state(&initial_state)?;
-    let next_state_bytes = hash_state(&next_state)?;
+    println!("Initial state hash bytes: {:?}", initial_state_bytes);
 
-    println!("Initial state bytes: {:?}", initial_state_bytes);
-    println!("Next state bytes: {:?}", next_state_bytes);
+    let next_state_bytes = hash_state(&next_state)?;
+    println!("Next state hash bytes: {:?}", next_state_bytes);
 
     // Initialize Merkle tree and update with states
-    println!("\n=== Updating Merkle Tree ===\n");
-
-    // Initialize Merkle tree
+    println!("\n=== Updating Merkle Tree ===");
     let mut smt = MerkleTree::new();
 
     smt.insert(initial_state_bytes)?;
@@ -195,23 +152,26 @@ fn test_e2e_integration() -> Result<()> {
     println!("Next state added to Merkle tree");
 
     // Generate and verify Merkle proof for the next state
-    println!("\n=== Generating and Verifying Merkle Proof ===\n");
+    println!("\n=== Generating and Verifying Merkle Proof ===");
     let merkle_proof = smt
         .get_proof(&next_state_bytes)
         .ok_or(anyhow!("Failed to generate Merkle proof"))?;
     println!("Merkle proof generated successfully");
-    println!("Merkle tree root: {:?}", smt.root);
+
+    println!("Merkle proof verification started");
+    println!("Root: {:?}", smt.root);
 
     if !smt.verify_proof(&next_state_bytes, &merkle_proof, &smt.root) {
         return Err(anyhow!("Merkle proof verification failed"));
     }
     println!("Merkle proof verified successfully");
 
-    // Build and send an OP_RETURN transaction embedding the next state hash.
-    println!("\n=== Building and Sending OP_RETURN Transaction ===\n");
+    // Build and send OP_RETURN transaction
+    println!("\n=== Building and Sending OP_RETURN Transaction ===");
     let raw_tx_hex = build_op_return_transaction(&mut client, next_state_bytes)?;
     let txid = client.send_raw_transaction_hex(&raw_tx_hex)?;
     println!("Transaction sent with ID: {}", txid);
+
     client.generate_blocks(1, &addr.to_string())?;
     println!("Block generated to confirm transaction");
 
@@ -219,7 +179,6 @@ fn test_e2e_integration() -> Result<()> {
     Ok(())
 }
 
-/// Builds an OP_RETURN transaction embedding the provided data.
 fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Result<String> {
     let amount = 100_000;
     let (outpoint, utxo) = client.get_spendable_utxo(amount)?;
@@ -272,4 +231,93 @@ fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Re
 
     println!("Transaction signed");
     Ok(signed_tx_hex)
+}
+
+#[test]
+fn test_valid_transition() -> Result<()> {
+    let initial_state = ChannelState {
+        balances: vec![100, 0],
+        nonce: 0,
+        metadata: vec![],
+        merkle_root: [0u8; 32],
+        proof: None,
+    };
+
+    let mut transition_data = [0u8; 32];
+    transition_data[0..4].copy_from_slice(&(-10i32).to_le_bytes());
+    transition_data[4..8].copy_from_slice(&(10i32).to_le_bytes());
+    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());
+
+    let result = apply_transition(&initial_state, &transition_data)?;
+    assert_eq!(result.balances[0], 90);
+    assert_eq!(result.balances[1], 10);
+    assert_eq!(result.nonce, 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_insufficient_funds() -> Result<()> {
+    let initial_state = ChannelState {
+        balances: vec![10, 0],
+        nonce: 0,
+        metadata: vec![],
+        merkle_root: [0u8; 32],
+        proof: None,
+    };
+
+    let mut transition_data = [0u8; 32];
+    transition_data[0..4].copy_from_slice(&(-20i32).to_le_bytes());
+    transition_data[4..8].copy_from_slice(&(20i32).to_le_bytes());
+
+    let result = apply_transition(&initial_state, &transition_data);
+    assert!(result.is_err());
+    assert_eq!(
+        format!("{}", result.unwrap_err()),
+        "Negative balance is not allowed"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_nonce_overflow() -> Result<()> {
+    let initial_state = ChannelState {
+        balances: vec![100, 0],
+        nonce: u64::MAX,
+        metadata: vec![],
+        merkle_root: [0u8; 32],
+        proof: None,
+    };
+
+    let mut transition_data = [0u8; 32];
+    transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());
+
+    let result = apply_transition(&initial_state, &transition_data);
+    assert!(result.is_err());
+    assert_eq!(format!("{}", result.unwrap_err()), "Nonce overflow");
+    Ok(())
+}
+
+#[test]
+fn test_negative_balance() -> Result<()> {
+    let initial_state = ChannelState {
+        balances: vec![10, 10],
+        nonce: 0,
+        metadata: vec![],
+        merkle_root: [0u8; 32],
+        proof: None,
+    };
+
+    let mut transition_data = [0u8; 32];
+    transition_data[0..4].copy_from_slice(&(-20i32).to_le_bytes());
+
+    let result = apply_transition(&initial_state, &transition_data);
+    assert!(result.is_err());
+    assert_eq!(
+        format!("{}", result.unwrap_err()),
+        "Negative balance is not allowed"
+    );
+
+    Ok(())
 }

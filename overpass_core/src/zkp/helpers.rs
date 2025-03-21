@@ -3,11 +3,17 @@
 use anyhow::Result;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
+use plonky2::plonk::config::Hasher;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::zkp::channel::ChannelState;
+use plonky2::hash::poseidon::PoseidonHash;
+use plonky2_field::goldilocks_field::GoldilocksField;
+use plonky2_field::types::{Field, PrimeField64};
 
 use crate::zkp::pedersen_parameters::PedersenParameters;
 
@@ -57,9 +63,9 @@ pub fn compute_global_root(wallet_roots: &HashMap<Bytes32, Bytes32>) -> Result<B
 /// Computes the Merkle root from channel state.
 pub fn compute_channel_root(channel_id: Bytes32, commitment: Bytes32, nonce: u64) -> Bytes32 {
     let mut hasher = Sha256::new();
-    hasher.update(&channel_id);
-    hasher.update(&commitment);
-    hasher.update(&nonce.to_le_bytes());
+    hasher.update(channel_id);
+    hasher.update(commitment);
+    hasher.update(nonce.to_le_bytes());
     let result = hasher.finalize();
     let mut root = [0u8; 32];
     root.copy_from_slice(&result);
@@ -107,12 +113,45 @@ pub fn compute_global_root_from_sorted(sorted_hashes: &[Bytes32]) -> Bytes32 {
 /// Hashes two bytes32 together to form parent node.
 pub fn hash_pair(left: Bytes32, right: Bytes32) -> Bytes32 {
     let mut hasher = Sha256::new();
-    hasher.update(&left);
-    hasher.update(&right);
+    hasher.update(left);
+    hasher.update(right);
     let result = hasher.finalize();
     let mut parent = [0u8; 32];
     parent.copy_from_slice(&result);
     parent
+}
+
+/// Converts the ChannelState into a 32-byte hash using PoseidonHash.
+pub fn hash_state(state: &ChannelState) -> Result<Bytes32> {
+    let mut inputs = Vec::new();
+
+    // Serialize balances
+    for &balance in &state.balances {
+        let field_element = GoldilocksField::from_canonical_u64(balance);
+        inputs.push(field_element);
+    }
+
+    // Serialize nonce
+    let nonce_element = GoldilocksField::from_canonical_u64(state.nonce);
+    inputs.push(nonce_element);
+
+    // Serialize metadata
+    for &byte in &state.metadata {
+        let metadata_element = GoldilocksField::from_canonical_u8(byte);
+        inputs.push(metadata_element);
+    }
+
+    // Compute Poseidon hash
+    let hash_out = PoseidonHash::hash_no_pad(&inputs);
+
+    // Convert to bytes
+    let mut bytes = [0u8; 32];
+    for (i, &element) in hash_out.elements.iter().enumerate() {
+        let elem_u64 = element.to_canonical_u64();
+        bytes[i * 8..(i + 1) * 8].copy_from_slice(&elem_u64.to_le_bytes());
+    }
+
+    Ok(bytes)
 }
 
 /// Current Unix timestamp.
@@ -168,7 +207,7 @@ pub fn verify_wallet_proof(
         .public_inputs
         .iter()
         .for_each(|input| hasher.update(input));
-    hasher.update(&proof.timestamp.to_le_bytes()); // timestamp
+    hasher.update(proof.timestamp.to_le_bytes()); // timestamp
     hasher.update(params.g.compress().as_bytes()); // Pedersen parameter `g`
     hasher.update(params.h.compress().as_bytes()); // Pedersen parameter `h`
 
@@ -209,12 +248,12 @@ pub fn generate_state_proof(
     params: &PedersenParameters,
 ) -> StateProof {
     let mut hasher = Sha256::new();
-    hasher.update(&old_commitment);
-    hasher.update(&new_commitment);
-    hasher.update(&merkle_root);
+    hasher.update(old_commitment);
+    hasher.update(new_commitment);
+    hasher.update(merkle_root);
 
     let timestamp = current_timestamp();
-    hasher.update(&timestamp.to_le_bytes());
+    hasher.update(timestamp.to_le_bytes());
 
     hasher.update(params.g.compress().as_bytes());
     hasher.update(params.h.compress().as_bytes());

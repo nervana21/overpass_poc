@@ -1,18 +1,13 @@
 // src/zkp/channel.rs
 
-use crate::zkp::tree::{MerkleTree, MerkleTreeError};
-use anyhow::{Context, Result};
-use plonky2::hash::poseidon::PoseidonHash;
-use plonky2::plonk::config::Hasher;
-use plonky2_field::goldilocks_field::GoldilocksField;
-use plonky2_field::types::Field;
-use plonky2_field::types::PrimeField64;
-use serde::{Deserialize, Serialize};
-
 use super::helpers::generate_random_blinding;
+use super::helpers::hash_state;
 use super::helpers::{compute_channel_root, generate_state_proof, pedersen_commit, Bytes32};
 use super::pedersen_parameters::PedersenParameters;
 use super::state_proof;
+use crate::zkp::tree::{MerkleTree, MerkleTreeError};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 /// Represents the state of a channel.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -64,40 +59,6 @@ impl ChannelState {
         }
     }
 
-    /// Converts the ChannelState into a 32-byte hash using PoseidonHash.
-    pub fn hash_state(&self) -> Result<Bytes32> {
-        // Serialize the entire state using serde_json for consistency
-        let serialized = serde_json::to_vec(self).context("Failed to serialize channel state")?;
-
-        // Convert serialized bytes to field elements
-        let mut inputs = Vec::new();
-        for chunk in serialized.chunks(8) {
-            let mut bytes = [0u8; 8];
-            bytes[..chunk.len()].copy_from_slice(chunk);
-            inputs.push(GoldilocksField::from_canonical_u64(u64::from_le_bytes(
-                bytes,
-            )));
-        }
-
-        // Convert metadata bytes to field elements
-        // for &byte in &self.metadata {
-        // let metadata_element = GoldilocksField::from_canonical_u8(byte);
-        // inputs.push(metadata_element);
-        // }
-
-        // Compute Poseidon hash
-        let hash_out = PoseidonHash::hash_no_pad(&inputs);
-
-        // Convert HashOut to bytes
-        let mut bytes = [0u8; 32];
-        for (i, &element) in hash_out.elements.iter().enumerate() {
-            let elem_u64 = element.to_canonical_u64();
-            bytes[i * 8..(i + 1) * 8].copy_from_slice(&elem_u64.to_le_bytes());
-        }
-
-        Ok(bytes)
-    }
-
     /// Verifies that the transition from old_state to self is valid.
     pub fn verify_transition(&self, old_state: &ChannelState) -> bool {
         // Example verification: nonce should increment and balances should not decrease
@@ -128,9 +89,8 @@ impl ChannelState {
             ));
         }
 
-        let new_leaf = self
-            .hash_state()
-            .map_err(|e| MerkleTreeError::InvalidInput(e.to_string()))?;
+        let new_leaf =
+            hash_state(self).map_err(|e| MerkleTreeError::InvalidInput(e.to_string()))?;
 
         smt.update(key, new_leaf)?;
 
@@ -206,7 +166,7 @@ mod tests {
         let initial_state = ChannelState::new(channel_id, vec![100, 0], vec![1, 2, 3], &params);
 
         // Compute the initial state commitment (hash) and insert it into the tree.
-        let initial_leaf = initial_state.hash_state().unwrap();
+        let initial_leaf = hash_state(&initial_state).unwrap();
         tree.insert(initial_leaf)?;
 
         // Now, simulate a state transition: for example, the balances change.
@@ -219,7 +179,7 @@ mod tests {
         };
 
         // Compute the new state commitment.
-        let new_leaf = new_state.hash_state().unwrap();
+        let new_leaf = hash_state(&new_state).unwrap();
 
         // Update the tree: replace the initial state commitment with the new one.
         tree.update(initial_leaf, new_leaf)?;

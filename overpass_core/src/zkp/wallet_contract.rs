@@ -11,6 +11,7 @@ use serde_json;
 use std::collections::HashMap;
 use std::fmt;
 
+use super::helpers::hash_state;
 use super::state_proof;
 
 /// Local Verification Layer (Level 2)
@@ -59,10 +60,7 @@ impl WalletContract {
         global_contract: GlobalRootContract,
     ) -> Self {
         // Initialize Merkle root based on initial channels (empty at creation)
-        let merkle_root = match compute_global_root(&HashMap::new()) {
-            Ok(root) => root,
-            Err(_) => [0u8; 32],
-        };
+        let merkle_root = compute_global_root(&HashMap::new()).unwrap_or_default();
 
         Self {
             wallet_id,
@@ -102,8 +100,7 @@ impl WalletContract {
             .channels
             .iter()
             .map(|(channel_id, channel_state)| {
-                let channel_hash = channel_state
-                    .hash_state()
+                let channel_hash = hash_state(channel_state)
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 Ok::<(Bytes32, Bytes32), WalletContractError>((*channel_id, channel_hash))
             })
@@ -129,8 +126,7 @@ impl WalletContract {
         // Retrieve the current channel state.
         let (_old_channel_merkle_root, old_commitment_hash) = match self.channels.get(&channel_id) {
             Some(channel) => {
-                let hash = channel
-                    .hash_state()
+                let hash = hash_state(channel)
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 (channel.merkle_root, hash)
             }
@@ -361,8 +357,7 @@ mod tests {
             .iter()
             .map(|id| {
                 let channel_state = wallet.get_channel(id).expect("Channel should exist");
-                let channel_hash = channel_state
-                    .hash_state()
+                let channel_hash = hash_state(&channel_state)
                     .map_err(|e| WalletContractError::HashError(e.to_string()))?;
                 Ok((*id, channel_hash))
             })
