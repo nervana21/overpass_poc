@@ -1,5 +1,6 @@
 // src/zkp/helpers.rs
 
+use anyhow::anyhow;
 use anyhow::Result;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
@@ -16,6 +17,8 @@ use plonky2_field::goldilocks_field::GoldilocksField;
 use plonky2_field::types::{Field, PrimeField64};
 
 use crate::zkp::pedersen_parameters::PedersenParameters;
+
+use super::bitcoin_ephemeral_state::BitcoinClient;
 
 /// Type alias for bytes32.
 pub type Bytes32 = [u8; 32];
@@ -268,6 +271,61 @@ pub fn generate_state_proof(
         timestamp,
         params: params.clone(),
     }
+}
+
+/// Builds an OP_RETURN transaction embedding the provided data.
+pub fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Result<String> {
+    let amount = 100_000;
+    let (outpoint, utxo) = client.get_spendable_utxo(amount)?;
+    println!("UTXO fetched");
+    println!("UTXO: {:?}", utxo);
+    println!("Outpoint: {}", outpoint);
+
+    println!("Amount: {}", amount);
+    println!("Data: {:?}", data);
+
+    let op_return_script = bitcoin::blockdata::script::Builder::new()
+        .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN)
+        .push_slice(&data)
+        .into_script();
+
+    println!("OP_RETURN script built");
+
+    let tx_in = bitcoin::TxIn {
+        previous_output: outpoint,
+        script_sig: bitcoin::ScriptBuf::default(),
+        sequence: bitcoin::Sequence(0xffffffff),
+        witness: bitcoin::Witness::default(),
+    };
+
+    let tx_out_opreturn = bitcoin::TxOut {
+        value: 0,
+        script_pubkey: op_return_script,
+    };
+
+    let tx_out_change = bitcoin::TxOut {
+        value: utxo.value - 1_000,
+        script_pubkey: utxo.script_pubkey,
+    };
+
+    let tx = bitcoin::Transaction {
+        version: 2,
+        lock_time: bitcoin::absolute::LockTime::ZERO,
+        input: vec![tx_in],
+        output: vec![tx_out_opreturn, tx_out_change],
+    };
+
+    println!("Transaction built");
+
+    let raw_tx_hex = hex::encode(bitcoin::consensus::encode::serialize(&tx));
+    println!("Transaction serialized");
+
+    let signed_tx_hex = client
+        .sign_raw_transaction(&raw_tx_hex)
+        .map_err(|e| anyhow!("Transaction signing failed: {}", e))?;
+
+    println!("Transaction signed");
+    Ok(signed_tx_hex)
 }
 
 #[cfg(test)]

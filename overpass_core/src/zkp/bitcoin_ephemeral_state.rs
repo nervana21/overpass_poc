@@ -5,7 +5,7 @@ use bitcoin::blockdata::script::Builder;
 use bitcoin::secp256k1::{All, Secp256k1, SecretKey};
 use bitcoin::PublicKey;
 use bitcoin::{
-    blockdata::transaction::{Transaction, TxIn, TxOut},
+    blockdata::transaction::{Transaction, TxOut},
     consensus::encode,
     Address, Network, OutPoint, ScriptBuf,
 };
@@ -150,60 +150,4 @@ impl BitcoinClient {
             &bitcoin::PrivateKey::from_slice(&secret_key[..], self.network).unwrap(),
         )
     }
-}
-
-/// Builds an OP_RETURN transaction embedding the provided data.
-pub fn build_op_return_transaction(
-    client: &mut BitcoinClient,
-    _data: &[u8; 32],
-    private_key: &SecretKey,
-) -> Result<String> {
-    // Generate key pair
-    let public_key = client.generate_keypair(private_key);
-    let script_pubkey = client.create_p2pkh_script(&public_key);
-
-    // Amount to send to OP_RETURN
-    let op_return_amount = 0;
-    let fee = 1_000;
-    let total_amount = op_return_amount + fee;
-
-    // Get a spendable UTXO
-    let (outpoint, tx_out) = client.get_spendable_utxo(total_amount)?;
-
-    // Build OP_RETURN script
-    let op_return_script = Builder::new()
-        .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN)
-        .into_script();
-
-    // Create inputs and outputs
-    let tx_in = TxIn {
-        previous_output: outpoint,
-        script_sig: ScriptBuf::new(),
-        sequence: bitcoin::Sequence(0xffffffff),
-        witness: bitcoin::Witness::new(),
-    };
-    let tx_out_opreturn = TxOut {
-        value: op_return_amount,
-        script_pubkey: op_return_script,
-    };
-    let tx_out_change = TxOut {
-        value: tx_out.value - total_amount,
-        script_pubkey,
-    };
-
-    // Build unsigned transaction
-    let tx = Transaction {
-        version: 2,
-        lock_time: bitcoin::absolute::LockTime::ZERO,
-        input: vec![tx_in],
-        output: vec![tx_out_opreturn, tx_out_change],
-    };
-
-    // Sign the transaction
-    let signed_tx_hex = client.sign_raw_transaction(&hex::encode(encode::serialize(&tx)))?;
-
-    // Send the transaction
-    let txid = client.send_raw_transaction_hex(&signed_tx_hex)?;
-
-    Ok(txid)
 }
