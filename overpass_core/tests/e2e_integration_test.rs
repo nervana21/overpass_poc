@@ -35,7 +35,7 @@ fn test_e2e_integration() -> Result<()> {
 
     // Define channel states
     println!("\n=== Creating Channel States ===\n");
-    let initial_state = ChannelState {
+    let mut initial_state = ChannelState {
         balances: vec![balance as u64, 0],
         nonce: 0,
         metadata: vec![],
@@ -44,16 +44,9 @@ fn test_e2e_integration() -> Result<()> {
     };
     let channel_id = [1u8; 32];
 
-    let computed_merkle_root =
+    // Compute and update the initial Merkle root
+    initial_state.merkle_root =
         compute_channel_root(channel_id, hash_state(&initial_state)?, initial_state.nonce);
-
-    let initial_state = ChannelState {
-        balances: vec![balance as u64, 0],
-        nonce: 0,
-        metadata: vec![],
-        merkle_root: computed_merkle_root,
-        proof: None,
-    };
 
     println!("Initial state created: {:?}", initial_state);
     // Generate transition data
