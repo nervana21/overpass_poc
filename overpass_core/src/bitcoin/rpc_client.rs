@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
 
+#[allow(unused_imports)]
+use serde_json::json;
+
 #[derive(Error, Debug)]
 pub enum RpcError {
     #[error("Connection failed: {0}")]
@@ -211,13 +214,12 @@ mod tests {
     use bitcoincore_rpc::RpcApi;
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_block_count() {
         // Configure BitcoinRpcClient
         let config = BitcoinRpcConfig {
             url: "http://127.0.0.1:18443".to_string(), // Default regtest RPC port
-            user: "user".to_string(),
-            password: "password".to_string(),
+            user: "rpcuser".to_string(),
+            password: "rpcpassword".to_string(),
             network: Network::Regtest,
             timeout_seconds: 30,
         };
@@ -233,13 +235,12 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_balance() {
         // Configure BitcoinRpcClient
         let config = BitcoinRpcConfig {
             url: "http://127.0.0.1:18443".to_string(),
-            user: "user".to_string(),
-            password: "password".to_string(),
+            user: "rpcuser".to_string(),
+            password: "rpcpassword".to_string(),
             network: Network::Regtest,
             timeout_seconds: 30,
         };
@@ -252,24 +253,29 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_send_raw_transaction() {
         // Configure BitcoinRpcClient
         let config = BitcoinRpcConfig {
             url: "http://127.0.0.1:18443".to_string(),
-            user: "user".to_string(),
-            password: "password".to_string(),
+            user: "rpcuser".to_string(),
+            password: "rpcpassword".to_string(),
             network: Network::Regtest,
             timeout_seconds: 30,
         };
 
         let client = BitcoinRpcClient::new(config).expect("Failed to create RPC client");
 
+        client
+            .inner
+            .call::<serde_json::Value>("settxfee", &[json!(0.0001)])
+            .expect("Failed to set tx fee");
+
         // Generate a new address for testing
         let new_address = client
             .inner
             .get_new_address(None, None)
             .expect("Failed to get new address");
+
         let txid = client
             .inner
             .send_to_address(
