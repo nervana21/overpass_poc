@@ -62,7 +62,12 @@ impl BitcoinClient {
         Ok(())
     }
 
-    /// Retrieves the balance of the wallet.
+    /// Retrieves the *spendable* balance of the wallet in satoshis
+    ///
+    /// Note that newly mined coinbase outputs require 100 confirmations
+    /// (i.e., 100 more blocks) before they become spendable and thus show
+    /// up in this total. Immature coinbase outputs will not show up in
+    /// this total.
     pub fn get_balance(&self) -> Result<u64> {
         let balance = self
             .rpc
@@ -149,5 +154,13 @@ impl BitcoinClient {
             &self.secp,
             &bitcoin::PrivateKey::from_slice(&secret_key[..], self.network).unwrap(),
         )
+    }
+
+    /// Creates or loads a wallet with the given name
+    pub fn create_wallet(&self, wallet_name: &str) -> Result<()> {
+        self.rpc
+            .create_wallet(wallet_name, None, None, None, None)
+            .context("Failed to create wallet via RPC")?;
+        Ok(())
     }
 }
