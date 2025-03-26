@@ -177,7 +177,7 @@ async fn test_e2e_integration() -> Result<()> {
     println!("Wallet balance: {}", balance);
     assert!(balance > 0, "Wallet balance should be greater than zero");
 
-    println!("\n=== Creating Channel States ===\n");
+    println!("\n=== Creating Initial Channel State ===");
     let mut initial_state = ChannelState {
         balances: vec![balance, 0],
         nonce: 0,
@@ -190,7 +190,7 @@ async fn test_e2e_integration() -> Result<()> {
         compute_channel_root(channel_id, hash_state(&initial_state)?, initial_state.nonce);
     println!("Initial state created: {:?}", initial_state);
 
-    println!("\n=== Generating Transition Data ===\n");
+    println!("\n=== Generating Transition Data ===");
     let mut transition_data = [0u8; 32];
     transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());
     transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());

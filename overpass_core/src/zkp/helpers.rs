@@ -412,4 +412,167 @@ mod tests {
         let is_valid = verify_wallet_proof(&old_commitment, &new_commitment, &proof, &params);
         assert!(is_valid, "The generated state proof should be valid.");
     }
+
+    #[test]
+    fn test_compute_channel_root_deterministic() {
+        let channel_id = [1u8; 32];
+        let commitment = [2u8; 32];
+        let nonce = 21;
+
+        let root1 = compute_channel_root(channel_id, commitment, nonce);
+        let root2 = compute_channel_root(channel_id, commitment, nonce);
+
+        // Identical inputs must yield identical roots
+        assert_eq!(root1, root2);
+    }
+
+    #[test]
+    fn test_compute_channel_root_different_channel_id() {
+        let channel_id1 = [1u8; 32];
+        let channel_id2 = [2u8; 32];
+        let commitment = [3u8; 32];
+        let nonce = 21;
+
+        let root1 = compute_channel_root(channel_id1, commitment, nonce);
+        let root2 = compute_channel_root(channel_id2, commitment, nonce);
+
+        // Changing the channel_id should produce a different root
+        assert_ne!(root1, root2);
+    }
+
+    #[test]
+    fn test_compute_channel_root_different_commitment() {
+        let channel_id = [1u8; 32];
+        let commitment1 = [2u8; 32];
+        let commitment2 = [3u8; 32];
+        let nonce = 21;
+
+        let root1 = compute_channel_root(channel_id, commitment1, nonce);
+        let root2 = compute_channel_root(channel_id, commitment2, nonce);
+
+        // Changing the commitment should produce a different root
+        assert_ne!(root1, root2);
+    }
+
+    #[test]
+    fn test_compute_channel_root_different_nonce() {
+        let channel_id = [1u8; 32];
+        let commitment = [2u8; 32];
+        let nonce1 = 21;
+        let nonce2 = 999;
+
+        let root1 = compute_channel_root(channel_id, commitment, nonce1);
+        let root2 = compute_channel_root(channel_id, commitment, nonce2);
+
+        // Changing the nonce should produce a different root
+        assert_ne!(root1, root2);
+    }
+
+    #[test]
+    fn test_compute_channel_root_zero_values() {
+        let channel_id = [0u8; 32];
+        let commitment = [0u8; 32];
+        let nonce = 0;
+
+        // Call the function; if it doesn't panic, the test passes.
+        let _ = compute_channel_root(channel_id, commitment, nonce);
+    }
+
+    #[test]
+    fn test_hash_state_deterministic() {
+        // A ChannelState with some simple values
+        let state = ChannelState {
+            balances: vec![100, 200],
+            nonce: 21,
+            metadata: vec![1, 2, 3],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+
+        // Hash it twice; the outputs must match
+        let hash1 = hash_state(&state).expect("hash_state should succeed");
+        let hash2 = hash_state(&state).expect("hash_state should succeed");
+        assert_eq!(hash1, hash2, "Identical state must produce identical hash");
+    }
+
+    #[test]
+    fn test_hash_state_diff_balance() {
+        // Start with a base state
+        let mut state = ChannelState {
+            balances: vec![100, 200],
+            nonce: 21,
+            metadata: vec![1, 2, 3],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let base_hash = hash_state(&state).unwrap();
+
+        // Change one of the balances
+        state.balances[1] = 300;
+        let changed_hash = hash_state(&state).unwrap();
+
+        assert_ne!(
+            base_hash, changed_hash,
+            "Changing balances should produce a different hash"
+        );
+    }
+
+    #[test]
+    fn test_hash_state_diff_nonce() {
+        // Base state
+        let mut state = ChannelState {
+            balances: vec![100, 200],
+            nonce: 21,
+            metadata: vec![1, 2, 3],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let base_hash = hash_state(&state).unwrap();
+
+        // Change the nonce
+        state.nonce = 999;
+        let changed_hash = hash_state(&state).unwrap();
+
+        assert_ne!(
+            base_hash, changed_hash,
+            "Changing the nonce should produce a different hash"
+        );
+    }
+
+    #[test]
+    fn test_hash_state_diff_metadata() {
+        // Base state
+        let mut state = ChannelState {
+            balances: vec![100, 200],
+            nonce: 21,
+            metadata: vec![1, 2, 3],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let base_hash = hash_state(&state).unwrap();
+
+        // Change metadata
+        state.metadata = vec![9, 9, 9, 9];
+        let changed_hash = hash_state(&state).unwrap();
+
+        assert_ne!(
+            base_hash, changed_hash,
+            "Changing metadata should produce a different hash"
+        );
+    }
+
+    #[test]
+    fn test_hash_state_zero_values() {
+        // All-zero balances, nonce, and empty metadata
+        let state = ChannelState {
+            balances: vec![0, 0],
+            nonce: 0,
+            metadata: vec![],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+
+        // Just ensure it doesn't panic and yields some hash
+        let _ = hash_state(&state).expect("hash_state should not fail");
+    }
 }
