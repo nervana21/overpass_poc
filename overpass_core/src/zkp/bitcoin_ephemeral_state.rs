@@ -62,12 +62,8 @@ impl BitcoinClient {
         Ok(())
     }
 
-    /// Retrieves the *spendable* balance of the wallet in satoshis
-    ///
-    /// Note that newly mined coinbase outputs require 100 confirmations
-    /// (i.e., 100 more blocks) before they become spendable and thus show
-    /// up in this total. Immature coinbase outputs will not show up in
-    /// this total.
+    /// Returns the total wallet balance in satoshis, including confirmed and unconfirmed UTXOs.
+    /// This function reflects the wallet's complete spendable balance (excluding locked or immature funds).
     pub fn get_balance(&self) -> Result<u64> {
         let balance = self
             .rpc
