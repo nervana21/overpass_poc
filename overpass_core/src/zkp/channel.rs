@@ -108,7 +108,10 @@ impl ChannelState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zkp::tree::{MerkleTree, MerkleTreeError};
+    use crate::zkp::{
+        state_transition::apply_transition,
+        tree::{MerkleTree, MerkleTreeError},
+    };
 
     fn setup_test_channel_state_params() -> (Bytes32, Vec<u64>, Vec<u8>, PedersenParameters) {
         // Setup test parameters
@@ -192,6 +195,87 @@ mod tests {
         let verified = tree.verify_proof(&new_leaf, &proof, &new_root);
         assert!(verified, "Proof of new state should be valid");
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_valid_transition() -> Result<()> {
+        let initial_state = ChannelState {
+            balances: vec![100, 0],
+            nonce: 0,
+            metadata: vec![],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let channel_id = [1u8; 32];
+        let mut transition_data = [0u8; 32];
+        transition_data[0..4].copy_from_slice(&(-10i32).to_le_bytes());
+        transition_data[4..8].copy_from_slice(&(10i32).to_le_bytes());
+        let result = apply_transition(channel_id, &initial_state, &transition_data)?;
+        assert_eq!(result.balances[0], 90);
+        assert_eq!(result.balances[1], 10);
+        assert_eq!(result.nonce, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_insufficient_funds() -> Result<()> {
+        let initial_state = ChannelState {
+            balances: vec![10, 0],
+            nonce: 0,
+            metadata: vec![],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let channel_id = [1u8; 32];
+        let mut transition_data = [0u8; 32];
+        transition_data[0..4].copy_from_slice(&(-20i32).to_le_bytes());
+        transition_data[4..8].copy_from_slice(&(20i32).to_le_bytes());
+        let result = apply_transition(channel_id, &initial_state, &transition_data);
+        assert!(result.is_err());
+        assert_eq!(
+            format!("{}", result.unwrap_err()),
+            "Negative balance is not allowed"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_nonce_overflow() -> Result<()> {
+        let initial_state = ChannelState {
+            balances: vec![100, 0],
+            nonce: u64::MAX,
+            metadata: vec![],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let channel_id = [1u8; 32];
+        let mut transition_data = [0u8; 32];
+        transition_data[8..12].copy_from_slice(&1i32.to_le_bytes());
+        let result = apply_transition(channel_id, &initial_state, &transition_data);
+        assert!(result.is_err());
+        assert_eq!(format!("{}", result.unwrap_err()), "Nonce overflow");
+        Ok(())
+    }
+
+    #[test]
+    fn test_negative_balance() -> Result<()> {
+        let initial_state = ChannelState {
+            balances: vec![10, 10],
+            nonce: 0,
+            metadata: vec![],
+            merkle_root: [0u8; 32],
+            proof: None,
+        };
+        let channel_id = [1u8; 32];
+        let mut transition_data = [0u8; 32];
+        transition_data[0..4].copy_from_slice(&(-20i32).to_le_bytes());
+        let result = apply_transition(channel_id, &initial_state, &transition_data);
+        assert!(result.is_err());
+        assert_eq!(
+            format!("{}", result.unwrap_err()),
+            "Negative balance is not allowed"
+        );
         Ok(())
     }
 }

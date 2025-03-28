@@ -9,3 +9,4 @@ Cargo.lock
 **/pkg
 overpass_core/log/*.txt
 **/.DS_Store
+.cursorrules
