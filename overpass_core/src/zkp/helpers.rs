@@ -8,7 +8,7 @@ use miniscript::bitcoin::{
     opcodes::all::OP_RETURN,
     script::Builder,
     transaction::{Transaction, TxIn, TxOut, Version},
-    Address, AddressType, Amount, OutPoint, ScriptBuf, Sequence, Txid, Witness,
+    Address, Amount, OutPoint, ScriptBuf, Sequence, Txid, Witness,
 };
 use plonky2::{hash::poseidon::PoseidonHash, plonk::config::Hasher};
 use rand::{rngs::OsRng, RngCore};
@@ -348,81 +348,72 @@ pub fn build_op_return_transaction(
     Ok(tx)
 }
 
-/// Builds a transaction that funds multiple Taproot (P2TR) outputs for onboarding.
-pub fn build_p2tr_onboarding_transaction(
-    node: &Node,
-    funding_address: &Address,
-    recipients: &[(Address, u64)], // Vec of (P2TR address, amount in sats)
-) -> Result<Transaction> {
-    // Step 1: Get the first available UTXO for the given funding address.
+/// Builds a P2TR transaction with n = 21 outputs of 546 sats each
+/// to model a relatively simple transaction that might be used
+/// for a single utxo funding multiple other UTXOs
+pub fn build_p2tr_transaction(node: &Node, funding_address: &Address) -> Result<Transaction> {
+    use miniscript::bitcoin::AddressType as BtcAddressType;
+
     let utxos: Vec<Value> = node.client.call("listunspent", &[])?;
     let utxo = utxos
         .into_iter()
         .find(|u| u.get("address") == Some(&Value::String(funding_address.to_string())))
         .ok_or_else(|| anyhow!("No UTXO found for address {}", funding_address))?;
 
-    let txid_str = utxo
+    let txid: Txid = utxo
         .get("txid")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("Missing txid"))?;
-    let txid: Txid = txid_str.parse()?;
+        .ok_or_else(|| anyhow!("Missing txid"))?
+        .parse()?;
 
     let vout = utxo
         .get("vout")
         .and_then(Value::as_u64)
         .ok_or_else(|| anyhow!("Missing vout"))? as u32;
 
-    let amount_btc = utxo
+    let input_value = (utxo
         .get("amount")
         .and_then(Value::as_f64)
-        .ok_or_else(|| anyhow!("Missing amount"))?;
-    let input_value = (amount_btc * 100_000_000.0) as u64;
+        .ok_or_else(|| anyhow!("Missing amount"))?
+        * 100_000_000.0) as u64;
 
-    // Step 2: Construct one output per recipient.
-    let mut outputs = vec![];
+    let dust_limit = 546;
+    let num_outputs = 21;
+
+    let mut outputs = Vec::with_capacity(num_outputs + 1); // 21 + change
     let mut total_output_value = 0;
 
-    for (addr, value) in recipients {
-        // if !addr.is_taproot() {
-        if addr.address_type() != Some(AddressType::P2tr) {
-            return Err(anyhow!("Address {} is not a Taproot address", addr));
+    for _ in 0..num_outputs {
+        let addr = node
+            .client
+            .new_address_with_type(corepc_node::AddressType::Bech32m)?;
+        if addr.address_type() != Some(BtcAddressType::P2tr) {
+            return Err(anyhow!("Expected Taproot address, got: {}", addr));
         }
 
-        let script = addr.script_pubkey();
         outputs.push(TxOut {
-            value: Amount::from_sat(*value),
-            script_pubkey: script,
+            value: Amount::from_sat(dust_limit),
+            script_pubkey: addr.script_pubkey(),
         });
-
-        total_output_value += value;
+        total_output_value += dust_limit;
     }
 
-    // Step 3: Estimate fee and build change output.
-    let fee = 1000; // Conservative fixed fee, could be dynamic
-    let required_total = total_output_value + fee;
+    // Estimate fee
+    let fee_per_vb = 2;
+    let est_vbytes = 10 + 41 + (31 * outputs.len()); // base + 1 input + N outputs
+    let est_fee = fee_per_vb * est_vbytes;
 
-    if input_value < required_total {
-        return Err(anyhow!(
-            "Insufficient funds: input={} < required={}",
-            input_value,
-            required_total
-        ));
-    }
-
-    let change_value = input_value - required_total;
-    let change_address = node.client.new_address()?; // Any type of address
-    let change_script = change_address.script_pubkey();
-    let change_output = TxOut {
+    // Add change output
+    let change_value = input_value.saturating_sub(total_output_value + est_fee as u64);
+    let change_address = node.client.new_address()?;
+    outputs.push(TxOut {
         value: Amount::from_sat(change_value),
-        script_pubkey: change_script,
-    };
+        script_pubkey: change_address.script_pubkey(),
+    });
 
-    outputs.push(change_output);
-
-    // Step 4: Construct the transaction.
     let tx = Transaction {
         version: Version::TWO,
-        lock_time: LockTime::from_height(0)?,
+        lock_time: LockTime::ZERO,
         input: vec![TxIn {
             previous_output: OutPoint::new(txid, vout),
             script_sig: ScriptBuf::new(),
