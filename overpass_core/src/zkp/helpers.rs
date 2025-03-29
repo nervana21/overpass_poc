@@ -1,24 +1,30 @@
 // src/zkp/helpers.rs
 
-use anyhow::anyhow;
-use anyhow::Result;
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::scalar::Scalar;
-use plonky2::plonk::config::Hasher;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use anyhow::{anyhow, Result};
+use corepc_node::{tempfile::tempdir, Conf, Node};
+use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
+use miniscript::bitcoin::{
+    absolute::LockTime,
+    opcodes::all::OP_RETURN,
+    script::Builder,
+    transaction::{Transaction, TxIn, TxOut, Version},
+    Address, AddressType, Amount, OutPoint, ScriptBuf, Sequence, Txid, Witness,
+};
+use plonky2::{hash::poseidon::PoseidonHash, plonk::config::Hasher};
+use rand::{rngs::OsRng, RngCore};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::zkp::channel::ChannelState;
-use plonky2::hash::poseidon::PoseidonHash;
-use plonky2_field::goldilocks_field::GoldilocksField;
-use plonky2_field::types::{Field, PrimeField64};
-
 use crate::zkp::pedersen_parameters::PedersenParameters;
-
-use super::bitcoin_ephemeral_state::BitcoinClient;
+use plonky2_field::{
+    goldilocks_field::GoldilocksField,
+    types::{Field, PrimeField64},
+};
 
 /// Type alias for bytes32.
 pub type Bytes32 = [u8; 32];
@@ -274,58 +280,181 @@ pub fn generate_state_proof(
 }
 
 /// Builds an OP_RETURN transaction embedding the provided data.
-pub fn build_op_return_transaction(client: &mut BitcoinClient, data: [u8; 32]) -> Result<String> {
-    let amount = 100_000;
-    let (outpoint, utxo) = client.get_spendable_utxo(amount)?;
-    println!("UTXO fetched");
-    println!("UTXO: {:?}", utxo);
-    println!("Outpoint: {}", outpoint);
+pub fn build_op_return_transaction(
+    node: &Node,
+    address: &Address,
+    data: [u8; 32],
+) -> Result<Transaction> {
+    // Step 1: Get the first available UTXO for the given address
+    let utxos: Vec<Value> = node.client.call("listunspent", &[])?;
+    let utxo = utxos
+        .into_iter()
+        .find(|u| u.get("address") == Some(&Value::String(address.to_string())))
+        .ok_or_else(|| anyhow!("No UTXO found for address {}", address))?;
 
-    println!("Amount: {}", amount);
-    println!("Data: {:?}", data);
+    let txid_str = utxo
+        .get("txid")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("Missing txid"))?;
+    let txid: Txid = txid_str.parse()?;
 
-    let op_return_script = bitcoin::blockdata::script::Builder::new()
-        .push_opcode(bitcoin::blockdata::opcodes::all::OP_RETURN)
+    let vout = utxo
+        .get("vout")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| anyhow!("Missing vout"))? as u32;
+
+    let amount_btc = utxo
+        .get("amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| anyhow!("Missing amount"))?;
+    let input_value = (amount_btc * 100_000_000.0) as u64; // Convert BTC to satoshis
+
+    // Step 2: Construct the OP_RETURN output.
+    let op_return_script = Builder::new()
+        .push_opcode(OP_RETURN)
         .push_slice(&data)
         .into_script();
-
-    println!("OP_RETURN script built");
-
-    let tx_in = bitcoin::TxIn {
-        previous_output: outpoint,
-        script_sig: bitcoin::ScriptBuf::default(),
-        sequence: bitcoin::Sequence(0xffffffff),
-        witness: bitcoin::Witness::default(),
-    };
-
-    let tx_out_opreturn = bitcoin::TxOut {
-        value: 0,
+    let op_return_output = TxOut {
+        value: Amount::from_sat(0), // OP_RETURN outputs have zero value.
         script_pubkey: op_return_script,
     };
 
-    let tx_out_change = bitcoin::TxOut {
-        value: utxo.value - 1_000,
-        script_pubkey: utxo.script_pubkey,
+    let fee = 1000; // e.g., 1000 satoshis fee.
+    if input_value <= fee {
+        return Err(anyhow!("Insufficient funds to cover fee"));
+    }
+    let change_value = input_value - fee;
+    let change_address = node.client.new_address()?;
+    // Use the script_pubkey directly from the change address.
+    let change_script = change_address.script_pubkey();
+    let change_output = TxOut {
+        value: Amount::from_sat(change_value),
+        script_pubkey: change_script,
     };
 
-    let tx = bitcoin::Transaction {
-        version: 2,
-        lock_time: bitcoin::absolute::LockTime::ZERO,
-        input: vec![tx_in],
-        output: vec![tx_out_opreturn, tx_out_change],
+    // Step 4: Construct the transaction.
+    let tx = Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::from_height(0)?,
+        input: vec![TxIn {
+            previous_output: OutPoint::new(txid, vout),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::default(),
+        }],
+        output: vec![op_return_output, change_output],
     };
 
-    println!("Transaction built");
+    Ok(tx)
+}
 
-    let raw_tx_hex = hex::encode(bitcoin::consensus::encode::serialize(&tx));
-    println!("Transaction serialized");
+/// Builds a transaction that funds multiple Taproot (P2TR) outputs for onboarding.
+pub fn build_p2tr_onboarding_transaction(
+    node: &Node,
+    funding_address: &Address,
+    recipients: &[(Address, u64)], // Vec of (P2TR address, amount in sats)
+) -> Result<Transaction> {
+    // Step 1: Get the first available UTXO for the given funding address.
+    let utxos: Vec<Value> = node.client.call("listunspent", &[])?;
+    let utxo = utxos
+        .into_iter()
+        .find(|u| u.get("address") == Some(&Value::String(funding_address.to_string())))
+        .ok_or_else(|| anyhow!("No UTXO found for address {}", funding_address))?;
 
-    let signed_tx_hex = client
-        .sign_raw_transaction(&raw_tx_hex)
-        .map_err(|e| anyhow!("Transaction signing failed: {}", e))?;
+    let txid_str = utxo
+        .get("txid")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("Missing txid"))?;
+    let txid: Txid = txid_str.parse()?;
 
-    println!("Transaction signed");
-    Ok(signed_tx_hex)
+    let vout = utxo
+        .get("vout")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| anyhow!("Missing vout"))? as u32;
+
+    let amount_btc = utxo
+        .get("amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| anyhow!("Missing amount"))?;
+    let input_value = (amount_btc * 100_000_000.0) as u64;
+
+    // Step 2: Construct one output per recipient.
+    let mut outputs = vec![];
+    let mut total_output_value = 0;
+
+    for (addr, value) in recipients {
+        // if !addr.is_taproot() {
+        if addr.address_type() != Some(AddressType::P2tr) {
+            return Err(anyhow!("Address {} is not a Taproot address", addr));
+        }
+
+        let script = addr.script_pubkey();
+        outputs.push(TxOut {
+            value: Amount::from_sat(*value),
+            script_pubkey: script,
+        });
+
+        total_output_value += value;
+    }
+
+    // Step 3: Estimate fee and build change output.
+    let fee = 1000; // Conservative fixed fee, could be dynamic
+    let required_total = total_output_value + fee;
+
+    if input_value < required_total {
+        return Err(anyhow!(
+            "Insufficient funds: input={} < required={}",
+            input_value,
+            required_total
+        ));
+    }
+
+    let change_value = input_value - required_total;
+    let change_address = node.client.new_address()?; // Any type of address
+    let change_script = change_address.script_pubkey();
+    let change_output = TxOut {
+        value: Amount::from_sat(change_value),
+        script_pubkey: change_script,
+    };
+
+    outputs.push(change_output);
+
+    // Step 4: Construct the transaction.
+    let tx = Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::from_height(0)?,
+        input: vec![TxIn {
+            previous_output: OutPoint::new(txid, vout),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::default(),
+        }],
+        output: outputs,
+    };
+
+    Ok(tx)
+}
+
+pub fn initialize_funded_node(bitcoind_path: &str) -> anyhow::Result<(Node, Address)> {
+    let tmpdir = tempdir()?;
+
+    let mut conf = Conf::default();
+    conf.args = vec!["-regtest", "-fallbackfee=0.0001"];
+    conf.wallet = None;
+    conf.tmpdir = Some(tmpdir.path().to_path_buf());
+
+    let node = Node::with_conf(bitcoind_path, &conf)?;
+
+    let wallet_name = "test_wallet";
+    let _ = node.client.create_wallet(wallet_name);
+
+    let address = node.client.new_address()?;
+    println!("Generated Address: {:?}", &address);
+
+    node.client.generate_to_address(101, &address)?;
+    println!("Generated 101 blocks");
+
+    Ok((node, address))
 }
 
 #[cfg(test)]

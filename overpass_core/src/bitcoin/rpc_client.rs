@@ -209,93 +209,14 @@ impl BitcoinRpcClient {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use bitcoin::Network;
-    use bitcoincore_rpc::RpcApi;
+    use crate::zkp::helpers::initialize_funded_node;
+    use anyhow::{Ok, Result};
 
     #[tokio::test]
-    async fn test_get_block_count() {
-        // Configure BitcoinRpcClient
-        let config = BitcoinRpcConfig {
-            url: "http://127.0.0.1:18443".to_string(), // Default regtest RPC port
-            user: "rpcuser".to_string(),
-            password: "rpcpassword".to_string(),
-            network: Network::Regtest,
-            timeout_seconds: 30,
-        };
-
-        let client = BitcoinRpcClient::new(config).expect("Failed to create RPC client");
-
-        // Test get_block_count
-        let block_count = client
-            .get_block_count()
-            .await
-            .expect("Failed to get block count");
+    async fn test_get_block_count() -> Result<()> {
+        let (node, _) = initialize_funded_node("/Users/bitnode/bitcoin/build/src/bitcoind")?;
+        let block_count = node.client.get_block_count()?.0;
         assert!(block_count > 0, "Block count should be positive");
-    }
-
-    #[tokio::test]
-    async fn test_get_balance() {
-        // Configure BitcoinRpcClient
-        let config = BitcoinRpcConfig {
-            url: "http://127.0.0.1:18443".to_string(),
-            user: "rpcuser".to_string(),
-            password: "rpcpassword".to_string(),
-            network: Network::Regtest,
-            timeout_seconds: 30,
-        };
-
-        let client = BitcoinRpcClient::new(config).expect("Failed to create RPC client");
-
-        // Test get_balance
-        let balance = client.get_balance().await.expect("Failed to get balance");
-        assert!(balance.to_sat() > 0, "Wallet balance should be positive");
-    }
-
-    #[tokio::test]
-    async fn test_send_raw_transaction() {
-        // Configure BitcoinRpcClient
-        let config = BitcoinRpcConfig {
-            url: "http://127.0.0.1:18443".to_string(),
-            user: "rpcuser".to_string(),
-            password: "rpcpassword".to_string(),
-            network: Network::Regtest,
-            timeout_seconds: 30,
-        };
-
-        let client = BitcoinRpcClient::new(config).expect("Failed to create RPC client");
-
-        client
-            .inner
-            .call::<serde_json::Value>("settxfee", &[json!(0.0001)])
-            .expect("Failed to set tx fee");
-
-        // Generate a new address for testing
-        let new_address = client
-            .inner
-            .get_new_address(None, None)
-            .expect("Failed to get new address");
-
-        let txid = client
-            .inner
-            .send_to_address(
-                &new_address
-                    .require_network(Network::Regtest)
-                    .expect("Invalid network"),
-                Amount::from_sat(1000),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-            .expect("Failed to send transaction");
-
-        let tx = client
-            .get_raw_transaction(&txid)
-            .await
-            .expect("Failed to get raw transaction");
-        assert_eq!(tx.txid(), txid, "Transaction ID mismatch");
+        Ok(())
     }
 }

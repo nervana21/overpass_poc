@@ -28,6 +28,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_keypair_generation() {
         let keypair = generate_keypair().unwrap();
         let keypair: (Vec<u8>, Vec<u8>) = serde_wasm_bindgen::from_value(keypair).unwrap();

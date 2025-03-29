@@ -1,42 +1,29 @@
 // overpass_core/tests/e2e_integration_test.rs
 
-use anyhow::{anyhow, Result};
-use bitcoin::Network;
-use overpass_core::zkp::helpers::{build_op_return_transaction, compute_channel_root, hash_state};
-use overpass_core::zkp::state_transition::apply_transition;
+use anyhow::{anyhow, Ok};
+use miniscript::bitcoin::{consensus::deserialize, consensus::encode::serialize_hex, Transaction};
+
 use overpass_core::zkp::{
-    bitcoin_ephemeral_state::BitcoinClient, channel::ChannelState, tree::MerkleTree,
+    channel::ChannelState,
+    helpers::{
+        build_op_return_transaction, compute_channel_root, hash_state, initialize_funded_node,
+    },
+    state_transition::apply_transition,
+    tree::MerkleTree,
 };
 
 #[test]
-fn test_e2e_integration() -> Result<()> {
-    println!("\n=== Starting E2E Integration Test ===\n");
+fn test_e2e_integration() -> anyhow::Result<()> {
+    println!("\n=== Starting E2E Test ===");
+    let (node, address) = initialize_funded_node("/Users/bitnode/bitcoin/build/src/bitcoind")?;
 
-    // Initialize Bitcoin client
-    let mut client = BitcoinClient::new(
-        "http://127.0.0.1:18443",
-        "rpcuser",
-        "rpcpassword",
-        Network::Regtest,
-    )?;
-
-    println!("Bitcoin client initialized");
-
-    // Fund the wallet
-    let addr = client.get_new_address()?;
-    println!("Generated address: {}", addr);
-
-    client.generate_blocks(101, &addr.to_string())?;
-    println!("Generated 101 blocks");
-
-    let balance = client.get_balance()?;
+    let balance = node.client.get_balance()?.balance()?.to_sat();
     println!("Wallet balance: {}", balance);
     assert!(balance > 0, "Wallet balance should be greater than zero");
 
-    // Define channel states
-    println!("\n=== Creating Channel States ===\n");
+    println!("\n=== Creating Channel States ===");
     let mut initial_state = ChannelState {
-        balances: vec![balance as u64, 0],
+        balances: vec![balance, 0],
         nonce: 0,
         metadata: vec![],
         merkle_root: [0u8; 32],
@@ -49,8 +36,8 @@ fn test_e2e_integration() -> Result<()> {
         compute_channel_root(channel_id, hash_state(&initial_state)?, initial_state.nonce);
 
     println!("Initial state created: {:?}", initial_state);
-    // Generate transition data
-    println!("\n=== Generating Transition Data ===\n");
+
+    println!("\n=== Generating Transition Data ===");
     let mut transition_data = [0u8; 32];
     transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());
     transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());
@@ -88,7 +75,6 @@ fn test_e2e_integration() -> Result<()> {
     smt.insert(next_state_bytes)?;
     println!("Next state added to Merkle tree");
 
-    // Generate and verify Merkle proof for the next state
     println!("\n=== Generating and Verifying Merkle Proof ===");
     let merkle_proof = smt
         .get_proof(&next_state_bytes)
@@ -105,13 +91,30 @@ fn test_e2e_integration() -> Result<()> {
 
     // Build and send OP_RETURN transaction
     println!("\n=== Building and Sending OP_RETURN Transaction ===");
-    let raw_tx_hex = build_op_return_transaction(&mut client, next_state_bytes)?;
-    let txid = client.send_raw_transaction_hex(&raw_tx_hex)?;
-    println!("Transaction sent with ID: {}", txid);
 
-    client.generate_blocks(1, &addr.to_string())?;
-    println!("Block generated to confirm transaction");
+    let tx = build_op_return_transaction(&node, &address, next_state_bytes)?;
+    // println!("{:?}", tx);
 
-    println!("\n=== Test Completed Successfully ===\n");
+    let tx_hex = serialize_hex(&tx);
+    let signed: serde_json::Value = node
+        .client
+        .call("signrawtransactionwithwallet", &[tx_hex.clone().into()])?;
+
+    let signed_hex = signed["hex"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Missing hex from signed transaction"))?;
+
+    // Convert the signed hex back into a Transaction
+    let tx: Transaction = deserialize(&hex::decode(signed_hex)?)?;
+
+    // Send the signed transaction
+    let _ = node.client.send_raw_transaction(&tx)?;
+    println!("Broadcasted transaction: {}", signed_hex);
+
+    node.client.generate_to_address(1, &address)?;
+    println!("\nBlock generated to confirm transaction");
+
+    println!("=== Test Completed Successfully ===\n");
+
     Ok(())
 }

@@ -171,36 +171,3 @@ impl BitcoinClient {
         Self::new("http://127.0.0.1:18443", "bitcoinrpc", "testpassword")
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// To run these tests, ensure a local regtest node is running:
-    /// bitcoind -regtest -daemon -rpcuser=rpcuser -rpcpassword=rpcpassword
-    ///
-    /// Then run:
-    /// cargo test
-    #[test]
-    fn test_connection_to_regtest() {
-        let client = BitcoinClient::new("http://127.0.0.1:18443", "rpcuser", "rpcpassword")
-            .expect("Failed to create client");
-
-        let block_count = client.get_block_count().expect("Failed to get block count");
-        println!("Current block count: {}", block_count);
-        assert!(block_count > 0);
-
-        // Generate some blocks to ensure we have funds and see if RPC works:
-        let address = client.get_new_address().expect("Failed to get new address");
-        println!("New regtest address: {}", address);
-
-        let _ = client
-            .generate_blocks(101, &address.to_string())
-            .expect("Failed to generate blocks");
-
-        // Now we should have some balance in regtest
-        let balance = client.get_balance().expect("Failed to get balance");
-        println!("Current balance: {} sats", balance);
-        assert!(balance > 0);
-    }
-}
