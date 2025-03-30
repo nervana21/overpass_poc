@@ -3,7 +3,8 @@ use crate::zkp::channel::ChannelState;
 /// Local Storage Layer (Level 3)
 /// Hybrid hot/cold storage optimized for mobile devices.
 use crate::zkp::compressed_transaction::CompressedTransaction;
-use crate::zkp::helpers::{hash_pair, Bytes32};
+use crate::zkp::helpers::commitments::Bytes32;
+use crate::zkp::helpers::merkle::hash_pair;
 use crate::zkp::state_proof::StateProof;
 use lru::LruCache;
 use std::fmt;
@@ -188,7 +189,7 @@ impl std::error::Error for StorageError {}
 mod tests {
     use super::*;
     use crate::zkp::channel::ChannelState;
-    use crate::zkp::helpers::Bytes32;
+    use crate::zkp::helpers::commitments::Bytes32;
     use crate::zkp::pedersen_parameters::PedersenParameters;
 
     #[test]

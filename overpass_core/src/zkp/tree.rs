@@ -11,9 +11,9 @@
 //! *TODO:* We may introduce domain separation (e.g. prefixing leaves with `0x00` and internal nodes with
 //! `0x01`) to eliminate any theoretical ambiguities. Please see section X in the Developer Documentation for more details.
 
-use crate::zkp::helpers::{hash_pair, Bytes32};
-// use std::error::Error;
-// use std::fmt;
+use crate::zkp::helpers::commitments::Bytes32;
+use crate::zkp::helpers::merkle::hash_pair;
+
 use thiserror::Error;
 
 /// Represents errors that can occur in the Merkle Tree operations.
@@ -277,7 +277,7 @@ pub struct MerkleProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zkp::helpers::hash_pair;
+    use crate::zkp::helpers::merkle::hash_pair;
     use anyhow::Result;
 
     #[test]

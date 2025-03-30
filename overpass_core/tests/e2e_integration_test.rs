@@ -84,7 +84,7 @@ fn test_e2e_integration() -> anyhow::Result<()> {
     println!("Merkle proof verification started");
     println!("Root: {:?}", smt.root);
 
-    if !smt.verify_proof(&next_state_bytes, &merkle_proof, &smt.root) {
+    if !smt.verify_proof(&next_state_bytes, merkle_proof.as_slice(), &smt.root) {
         return Err(anyhow!("Merkle proof verification failed"));
     }
     println!("Merkle proof verified successfully");

@@ -1,9 +1,9 @@
 use crate::zkp::channel::ChannelState;
 use crate::zkp::global_root_contract::{GlobalRootContract, GlobalRootContractError};
-use crate::zkp::helpers::{
-    compute_global_root, compute_global_root_from_sorted, generate_random_blinding,
-    generate_state_proof, pedersen_commit, Bytes32,
-};
+use crate::zkp::helpers::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
+use crate::zkp::helpers::merkle::{compute_global_root, compute_global_root_from_sorted};
+use crate::zkp::helpers::state::generate_state_proof;
+
 use crate::zkp::mobile_optimized_storage::{MobileOptimizedStorage, StorageError};
 use crate::zkp::pedersen_parameters::PedersenParameters;
 use anyhow::Result;
@@ -11,8 +11,8 @@ use serde_json;
 use std::collections::HashMap;
 use std::fmt;
 
-use super::helpers::hash_state;
 use super::state_proof;
+use crate::zkp::helpers::state::hash_state;
 
 /// Local Verification Layer (Level 2)
 /// Manages channels and generates network proofs.

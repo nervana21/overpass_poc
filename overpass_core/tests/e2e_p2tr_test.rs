@@ -11,7 +11,7 @@ use overpass_core::zkp::{
 };
 
 #[test]
-fn test_e2e_integration() -> anyhow::Result<()> {
+fn test_e2e_pt2r() -> anyhow::Result<()> {
     println!("\n=== Starting E2E P2TR Test ===");
     let (node, address) = initialize_funded_node("/Users/bitnode/bitcoin/build/src/bitcoind")?;
 
@@ -82,13 +82,13 @@ fn test_e2e_integration() -> anyhow::Result<()> {
     println!("Merkle proof verification started");
     println!("Root: {:?}", smt.root);
 
-    if !smt.verify_proof(&next_state_bytes, &merkle_proof, &smt.root) {
+    if !smt.verify_proof(&next_state_bytes, merkle_proof.as_slice(), &smt.root) {
         return Err(anyhow!("Merkle proof verification failed"));
     }
     println!("Merkle proof verified successfully");
 
-    // Build and send OP_RETURN transaction
-    println!("\n=== Building and Sending OP_RETURN Transaction ===");
+    // Build and send P2TR transaction
+    println!("\n=== Building and Sending P2TR Transaction ===");
 
     let tx = build_p2tr_transaction(&node, &address)?;
 

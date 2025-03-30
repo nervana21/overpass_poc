@@ -1,12 +1,15 @@
 // src/zkp/global_root_contract.rs
 
-use crate::zkp::helpers::{compute_global_root, verify_wallet_proof, Bytes32};
+use crate::zkp::helpers::commitments::Bytes32;
+use crate::zkp::helpers::merkle::compute_global_root;
+use crate::zkp::helpers::state::verify_wallet_proof;
+
 use crate::zkp::pedersen_parameters::{PedersenParameters, SerdePedersenParameters};
 use anyhow::Result;
 use std::collections::HashMap;
 use thiserror::Error;
 
-use super::helpers;
+use super::helpers::state::StateProof as HelperStateProof;
 use super::state_proof::{self, StateProof};
 use super::tree::{MerkleTree, MerkleTreeError};
 
@@ -131,7 +134,7 @@ impl GlobalRootContract {
             .ok_or(GlobalRootContractError::WalletNotFound)?;
 
         // Convert state_proof::StateProof to helpers::StateProof for verification
-        let helper_proof = helpers::StateProof {
+        let helper_proof = HelperStateProof {
             pi: proof.pi,
             public_inputs: proof.public_inputs.clone(),
             timestamp: proof.timestamp,
@@ -211,7 +214,9 @@ impl GlobalRootContract {
 
 #[cfg(test)]
 mod tests {
-    use super::helpers::generate_state_proof;
+    use crate::zkp::helpers::state::current_timestamp;
+    use crate::zkp::helpers::state::generate_state_proof;
+
     use super::*;
 
     fn setup_test_contract() -> GlobalRootContract {
@@ -283,7 +288,7 @@ mod tests {
                 new_commitment,
                 new_global_merkle_root,
             ],
-            timestamp: helpers::current_timestamp(),
+            timestamp: current_timestamp(),
         };
 
         // Update wallet with new root and proof

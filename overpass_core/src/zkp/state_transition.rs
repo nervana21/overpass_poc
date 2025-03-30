@@ -21,7 +21,8 @@ use plonky2::{
 use plonky2_field::types::{Field, PrimeField64};
 use std::collections::HashMap;
 
-use super::helpers::{compute_channel_root, hash_state};
+use crate::zkp::helpers::merkle::compute_channel_root;
+use crate::zkp::helpers::state::hash_state;
 
 /// Type alias for Poseidon configuration
 type PoseidonConfig = PoseidonGoldilocksConfig;

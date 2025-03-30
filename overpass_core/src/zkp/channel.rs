@@ -1,11 +1,13 @@
 // src/zkp/channel.rs
 
-use super::helpers::generate_random_blinding;
-use super::helpers::hash_state;
-use super::helpers::{compute_channel_root, generate_state_proof, pedersen_commit, Bytes32};
 use super::pedersen_parameters::PedersenParameters;
 use super::state_proof;
+use crate::zkp::helpers::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
+use crate::zkp::helpers::merkle::compute_channel_root;
+use crate::zkp::helpers::state::{generate_state_proof, hash_state};
+
 use crate::zkp::tree::{MerkleTree, MerkleTreeError};
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
