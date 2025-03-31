@@ -4,10 +4,8 @@
 use bitcoin::opcodes::all::OP_RETURN;
 use bitcoin::script::Builder;
 use bitcoin::script::PushBytesBuf;
-use bitcoin::OutPoint;
-use bitcoin::ScriptBuf;
-use bitcoin::Transaction;
-use bitcoin::TxIn;
+use bitcoin::transaction::Version;
+use bitcoin::{Amount, OutPoint, ScriptBuf, Transaction, TxIn};
 
 use crate::bitcoin::bitcoin_types::{
     BitcoinLockState, HTLCParameters, OpReturnMetadata, StealthAddress,
@@ -77,7 +75,7 @@ impl BitcoinClient {
         _pubkey_hash: [u8; 20],
     ) -> Result<Transaction, String> {
         let mut tx = Transaction {
-            version: 2,
+            version: Version(2),
             lock_time: locktime::absolute::LockTime::ZERO,
             input: vec![],
             output: vec![],
@@ -89,7 +87,7 @@ impl BitcoinClient {
             witness: bitcoin::Witness::default(),
         });
         tx.output.push(bitcoin::TxOut {
-            value,
+            value: Amount::from_sat(value),
             script_pubkey: ScriptBuf::new(),
         });
         Ok(tx)

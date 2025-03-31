@@ -1,12 +1,19 @@
+//overpass_core/src/bitcoin/wallet.rs
+
 use crate::bitcoin::bitcoin_types::StealthAddress;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use bip39::{Language, Mnemonic};
+use bitcoin::sighash::{Prevouts, SighashCache, TapSighashType};
+use bitcoin::TxOut;
 use bitcoin::{
-    bip32::{ExtendedPrivKey as Xpriv, ExtendedPubKey as Xpub},
-    secp256k1::{KeyPair, Message, PublicKey, Secp256k1, SecretKey},
-    sighash::{EcdsaSighashType, SighashCache},
     Network, Script, Transaction,
 };
+use bitcoin::secp256k1::{PublicKey, Secp256k1, Keypair, Message, SecretKey};
+use bitcoin::bip32::{Xpriv, Xpub};
+
+
+// use secp256k1::{};
+
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
@@ -42,13 +49,13 @@ pub enum WalletError {
     KeyFormatError(String),
 
     #[error("Address error: {0}")]
-    AddressError(#[from] bitcoin::address::Error),
+    AddressError(#[from] bitcoin::address::UnknownAddressTypeError),
 
     #[error("Stealth address error: {0}")]
     StealthAddressError(String),
 
     #[error("Sighash error: {0}")]
-    SighashError(#[from] bitcoin::sighash::Error),
+    SighashError(#[from] bitcoin::sighash::SighashTypeParseError),
 
     #[error("Serialization/Deserialization error: {0}")]
     SerdeError(#[from] serde_json::Error),
@@ -58,6 +65,12 @@ pub enum WalletError {
 
     #[error("Base64 decode error: {0}")]
     Base64DecodeError(#[from] base64::DecodeError),
+
+    #[error("Secp256k1 error: {0}")]
+    SecpError(#[from] secp256k1::Error),
+
+    #[error("taproot error: {0}")]
+    TaprootError(#[from] bitcoin::sighash::TaprootError),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -82,7 +95,7 @@ impl Wallet {
         let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)?;
         let seed = mnemonic.to_seed("");
         let xpriv = Xpriv::new_master(network, &seed)?;
-        let xpub = Xpub::from_priv(&Secp256k1::new(), &xpriv);
+        let xpub = Xpub::from_priv(&bitcoin::secp256k1::Secp256k1::new(), &xpriv);
         let encryption_key = Wallet::generate_encryption_key(256);
         let stealth_keys = Wallet::generate_stealth_keys()?;
 
@@ -109,7 +122,7 @@ impl Wallet {
         let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)?;
         let seed = mnemonic.to_seed(passphrase);
         let xpriv = Xpriv::new_master(self.network, &seed)?;
-        let xpub = Xpub::from_priv(&Secp256k1::new(), &xpriv);
+        let xpub = Xpub::from_priv(&bitcoin::secp256k1::Secp256k1::new(), &xpriv);
         let stealth_keys = Wallet::generate_stealth_keys()?;
 
         Ok(Wallet {
@@ -125,8 +138,18 @@ impl Wallet {
     pub fn generate_stealth_keys() -> Result<StealthKeyPair, WalletError> {
         let mut rng = OsRng;
         Ok(StealthKeyPair {
-            scan_key: SecretKey::new(&mut rng),
-            spend_key: SecretKey::new(&mut rng),
+            scan_key: {
+                let mut bytes = [0u8; 32];
+                rng.fill_bytes(&mut bytes);
+                let secret_key = SecretKey::from_slice(&bytes)?;
+                secret_key
+            },
+            spend_key: {
+                let mut bytes = [0u8; 32];
+                rng.fill_bytes(&mut bytes);
+                let secret_key = SecretKey::from_slice(&bytes)?;
+                secret_key
+            },
         })
     }
 
@@ -193,16 +216,22 @@ impl Wallet {
             .as_ref()
             .ok_or_else(|| WalletError::StealthAddressError("No stealth keys found".to_string()))?;
         let mut sighash_cache = SighashCache::new(&mut *transaction);
-        let sighash = sighash_cache.segwit_signature_hash(
+        let sighash = sighash_cache.taproot_signature_hash(
             input_index,
-            prev_script,
-            value,
-            EcdsaSighashType::All,
+            &Prevouts::All(&[TxOut {
+                value: bitcoin::Amount::from_sat(value),
+                script_pubkey: prev_script.into(),
+            }]),
+            None, // annex
+            None, // leaf_hash
+            TapSighashType::Default,
         )?;
+
         let secp = Secp256k1::new();
-        let keypair = KeyPair::from_secret_key(&secp, &stealth_keys.spend_key);
-        let message = Message::from_slice(&sighash[..])?;
-        let signature = secp.sign_schnorr(&message, &keypair);
+        let keypair = Keypair::from_secret_key(&secp, &stealth_keys.spend_key);
+        let message = Message::from_digest_slice(sighash.as_ref())?;
+        let signature = secp.sign_schnorr_no_aux_rand(&message, &keypair);
+
         transaction.input[input_index]
             .witness
             .push(signature.as_ref().to_vec());

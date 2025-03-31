@@ -62,7 +62,7 @@ pub fn verify_wallet_proof(
     old_root: &Bytes32,
     new_root: &Bytes32,
     proof: &StateProof,
-    params: &PedersenParameters,
+    _params: &PedersenParameters,
 ) -> bool {
     if current_timestamp().saturating_sub(proof.timestamp) > 3600 {
         return false;

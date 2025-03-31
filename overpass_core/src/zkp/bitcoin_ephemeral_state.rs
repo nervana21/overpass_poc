@@ -7,7 +7,7 @@ use bitcoin::PublicKey;
 use bitcoin::{
     blockdata::transaction::{Transaction, TxOut},
     consensus::encode,
-    Address, Network, OutPoint, ScriptBuf,
+    Address, Amount, Network, OutPoint, ScriptBuf,
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use std::collections::HashMap;
@@ -79,7 +79,7 @@ impl BitcoinClient {
 
         // Find a UTXO with sufficient amount
         for (_, (tx_out, outpoint)) in &self.utxos {
-            if tx_out.value >= amount {
+            if tx_out.value >= Amount::from_sat(amount) {
                 return Ok((*outpoint, tx_out.clone()));
             }
         }
@@ -97,7 +97,7 @@ impl BitcoinClient {
         for utxo in utxos {
             let txid = utxo.txid.to_string();
             let tx_out = TxOut {
-                value: utxo.amount.to_sat(),
+                value: utxo.amount,
                 script_pubkey: utxo.script_pub_key,
             };
             let outpoint = OutPoint {

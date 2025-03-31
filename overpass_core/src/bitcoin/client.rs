@@ -3,10 +3,12 @@
 use crate::bitcoin::bitcoin_types::{
     BitcoinLockState, HTLCParameters, OpReturnMetadata, StealthAddress,
 };
+use bitcoin::transaction::Version;
 use bitcoin::{
-    blockdata::script::ScriptBuf, locktime, opcodes::all::OP_RETURN, script::Builder, OutPoint,
-    Sequence, Transaction, TxIn, TxOut, Witness,
+    blockdata::script::ScriptBuf, locktime, opcodes::all::OP_RETURN, script::Builder, Amount,
+    OutPoint, Sequence, Transaction, TxIn, TxOut, Witness,
 };
+
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -82,12 +84,12 @@ impl BitcoinClient {
             .into_script();
 
         let tx_out = TxOut {
-            value,
+            value: Amount::from_sat(value),
             script_pubkey,
         };
 
         let tx = Transaction {
-            version: 2,
+            version: Version(2),
             lock_time: locktime::absolute::LockTime::ZERO,
             input: vec![tx_in],
             output: vec![tx_out],
