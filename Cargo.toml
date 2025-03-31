@@ -1,8 +1,4 @@
 [workspace]
-resolver = "1"
-members = [
-    "overpass_core",
-    "overpass_wasm",
-]
+resolver = "2"
 
-
+members = ["overpass_core", "overpass_wasm"]
