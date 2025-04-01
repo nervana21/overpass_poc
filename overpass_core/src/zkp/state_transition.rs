@@ -267,7 +267,7 @@ pub fn apply_transition(
         .ok_or_else(|| anyhow!("Nonce overflow"))?;
 
     let mut new_state = ChannelState {
-        balances: vec![
+        balances: [
             new_balance_0
                 .try_into()
                 .context("Failed to convert balance 0")?,

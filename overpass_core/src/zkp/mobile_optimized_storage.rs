@@ -211,7 +211,7 @@ mod tests {
         let channel_id: Bytes32 = [1u8; 32];
 
         let params = PedersenParameters::default();
-        let channel_state = ChannelState::new(channel_id, vec![100, 0], vec![1, 2, 3], &params);
+        let channel_state = ChannelState::new(channel_id, [100, 0], vec![1, 2, 3], &params);
 
         // Insert the dummy channel state into active_channels.
         storage.active_channels.put(channel_id, channel_state);

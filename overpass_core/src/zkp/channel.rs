@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// Represents the state of a channel.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChannelState {
-    pub balances: Vec<u64>,
+    pub balances: [u64; 2],
     pub nonce: u64,
     pub metadata: Vec<u8>,
     pub merkle_root: Bytes32,
@@ -24,7 +24,7 @@ pub struct ChannelState {
 impl ChannelState {
     pub fn new(
         channel_id: Bytes32,
-        balances: Vec<u64>,
+        balances: [u64; 2],
         metadata: Vec<u8>,
         params: &PedersenParameters,
     ) -> Self {
@@ -100,11 +100,6 @@ impl ChannelState {
 
         Ok((new_leaf, new_root))
     }
-
-    // / Calculates hash of the channel state for consistent referencing.
-    // pub fn hash(&self) -> Result<Bytes32> {
-    // self.hash_state()
-    // }
 }
 
 #[cfg(test)]
@@ -115,10 +110,10 @@ mod tests {
         tree::{MerkleTree, MerkleTreeError},
     };
 
-    fn setup_test_channel_state_params() -> (Bytes32, Vec<u64>, Vec<u8>, PedersenParameters) {
+    fn setup_test_channel_state_params() -> (Bytes32, [u64; 2], Vec<u8>, PedersenParameters) {
         // Setup test parameters
         let channel_id = [1u8; 32];
-        let balances: Vec<u64> = vec![100, 0];
+        let balances = [100, 0];
         let metadata = vec![1, 2, 3];
         let params = PedersenParameters::default();
 
@@ -132,7 +127,7 @@ mod tests {
         // Test case 1: Basic initialization with non-empty metadata
         let channel = ChannelState::new(channel_id, balances, metadata.clone(), &params);
 
-        assert_eq!(channel.balances, vec![100, 0]);
+        assert_eq!(channel.balances, [100, 0]);
         assert_eq!(channel.nonce, 0);
         assert_eq!(channel.metadata, metadata);
         assert!(channel.proof.is_some()); // Proof should be generated
@@ -147,15 +142,14 @@ mod tests {
         assert!(channel_empty_metadata.proof.is_some());
 
         // Test case 3: Initialization with zero balance
-        let channel_zero_balance =
-            ChannelState::new(channel_id, vec![0, 0], Vec::<u8>::new(), &params);
-        assert_eq!(channel_zero_balance.balances, vec![0, 0]);
+        let channel_zero_balance = ChannelState::new(channel_id, [0, 0], Vec::<u8>::new(), &params);
+        assert_eq!(channel_zero_balance.balances, [0, 0]);
         assert!(channel_zero_balance.proof.is_some());
 
         // Verify that different channel_ids produce different merkle roots
         let different_channel_id = [2u8; 32];
         let different_channel =
-            ChannelState::new(different_channel_id, vec![100, 0], metadata, &params);
+            ChannelState::new(different_channel_id, [100, 0], metadata, &params);
         assert_ne!(channel.merkle_root, different_channel.merkle_root);
     }
 
@@ -168,7 +162,7 @@ mod tests {
         let (channel_id, _balances, _metadata, params) = setup_test_channel_state_params();
 
         // Create the initial channel state with given balances and metadata.
-        let initial_state = ChannelState::new(channel_id, vec![100, 0], vec![1, 2, 3], &params);
+        let initial_state = ChannelState::new(channel_id, [100, 0], vec![1, 2, 3], &params);
 
         // Compute the initial state commitment (hash) and insert it into the tree.
         let initial_leaf = hash_state(&initial_state).unwrap();
@@ -176,7 +170,7 @@ mod tests {
 
         // Now, simulate a state transition: for example, the balances change.
         let new_state = ChannelState {
-            balances: vec![95, 5],
+            balances: [95, 5],
             nonce: 1,
             metadata: vec![1, 2, 3],
             merkle_root: [0u8; 32], // This will be recalculated inside update_in_tree.
@@ -203,7 +197,7 @@ mod tests {
     #[test]
     fn test_valid_transition() -> Result<()> {
         let initial_state = ChannelState {
-            balances: vec![100, 0],
+            balances: [100, 0],
             nonce: 0,
             metadata: vec![],
             merkle_root: [0u8; 32],
@@ -223,7 +217,7 @@ mod tests {
     #[test]
     fn test_insufficient_funds() -> Result<()> {
         let initial_state = ChannelState {
-            balances: vec![10, 0],
+            balances: [10, 0],
             nonce: 0,
             metadata: vec![],
             merkle_root: [0u8; 32],
@@ -245,7 +239,7 @@ mod tests {
     #[test]
     fn test_nonce_overflow() -> Result<()> {
         let initial_state = ChannelState {
-            balances: vec![100, 0],
+            balances: [100, 0],
             nonce: u64::MAX,
             metadata: vec![],
             merkle_root: [0u8; 32],
@@ -263,7 +257,7 @@ mod tests {
     #[test]
     fn test_negative_balance() -> Result<()> {
         let initial_state = ChannelState {
-            balances: vec![10, 10],
+            balances: [10, 10],
             nonce: 0,
             metadata: vec![],
             merkle_root: [0u8; 32],

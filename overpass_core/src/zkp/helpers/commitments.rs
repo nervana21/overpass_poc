@@ -19,7 +19,7 @@ pub fn generate_random_blinding() -> Bytes32 {
 
 /// Computes Pedersen commitment.
 pub fn pedersen_commit(
-    value: Vec<u64>,
+    value: [u64; 2],
     blinding: Bytes32,
     hparams: &PedersenParameters,
 ) -> Bytes32 {
@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn test_pedersen_commit_consistency() {
         let params = PedersenParameters::default();
-        let value = vec![100, 0];
+        let value = [100, 0];
         let blinding = generate_random_blinding();
 
         let c1 = pedersen_commit(value.clone(), blinding, &params);

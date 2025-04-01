@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn test_hash_state_deterministic() {
         let state = ChannelState {
-            balances: vec![100, 200],
+            balances: [100, 200],
             nonce: 21,
             metadata: vec![1, 2, 3],
             merkle_root: [0u8; 32],

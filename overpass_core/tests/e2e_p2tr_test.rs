@@ -21,7 +21,7 @@ fn test_e2e_pt2r() -> anyhow::Result<()> {
 
     println!("\n=== Creating Channel States ===");
     let mut initial_state = ChannelState {
-        balances: vec![balance, 0],
+        balances: [balance, 0],
         nonce: 0,
         metadata: vec![],
         merkle_root: [0u8; 32],
