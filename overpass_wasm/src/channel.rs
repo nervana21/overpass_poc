@@ -1,8 +1,9 @@
 // src/channel.rs
 
-use crate::types::dag_boc::{StateUpdate, StateUpdateWrapper};
 use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
+
+use crate::types::dag_boc::{StateUpdate, StateUpdateWrapper};
 
 #[derive(Clone, Debug)]
 pub struct Channel {
@@ -10,15 +11,9 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn new() -> Self {
-        Channel {
-            state_updates: Vec::new(),
-        }
-    }
+    pub fn new() -> Self { Channel { state_updates: Vec::new() } }
 
-    pub fn state_updates(&self) -> &[StateUpdate] {
-        &self.state_updates
-    }
+    pub fn state_updates(&self) -> &[StateUpdate] { &self.state_updates }
 
     pub fn get_current_hash(&self) -> Vec<u8> {
         let mut hasher = Sha256::new();
@@ -44,16 +39,12 @@ pub struct ChannelWrapper(Channel);
 #[wasm_bindgen]
 impl ChannelWrapper {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
-        ChannelWrapper(Channel::new())
-    }
+    pub fn new() -> Self { ChannelWrapper(Channel::new()) }
 
     #[wasm_bindgen]
     pub fn update_state(&mut self, update: &StateUpdateWrapper) -> Result<(), JsValue> {
         if !update.verify() {
-            return Err(JsValue::from_str(
-                "Invalid state update: verification failed",
-            ));
+            return Err(JsValue::from_str("Invalid state update: verification failed"));
         }
 
         let state_update = update.get_inner().clone();
@@ -72,22 +63,14 @@ impl ChannelWrapper {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn state_count(&self) -> usize {
-        self.0.state_updates.len()
-    }
+    pub fn state_count(&self) -> usize { self.0.state_updates.len() }
 
     #[wasm_bindgen]
-    pub fn verify(&self) -> bool {
-        self.0.verify_all_updates()
-    }
+    pub fn verify(&self) -> bool { self.0.verify_all_updates() }
 }
 
 #[wasm_bindgen]
-pub fn create_channel() -> ChannelWrapper {
-    ChannelWrapper::new()
-}
+pub fn create_channel() -> ChannelWrapper { ChannelWrapper::new() }
 
 #[wasm_bindgen]
-pub fn verify_state_update(update: &StateUpdateWrapper) -> bool {
-    update.verify()
-}
+pub fn verify_state_update(update: &StateUpdateWrapper) -> bool { update.verify() }

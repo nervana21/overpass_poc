@@ -10,8 +10,7 @@ pub mod wallet;
 pub mod zkp_handler;
 
 pub use bitcoin_transaction::BitcoinTransaction;
-pub use bitcoin_types::BitcoinLockState;
-pub use bitcoin_types::{HTLCParameters, StealthAddress};
+pub use bitcoin_types::{BitcoinLockState, HTLCParameters, StealthAddress};
 pub use client::BitcoinClient;
 pub use rpc_client::{BitcoinRpcClient, BitcoinRpcConfig};
 pub use stealth_addresses::{StealthAddressGenerator, StealthAddressManager};

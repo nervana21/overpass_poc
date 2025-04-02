@@ -1,14 +1,13 @@
 // src/zkp/transactions.rs
 
 use anyhow::{anyhow, Result};
-use corepc_node::{tempfile::tempdir, Conf, Node};
-use miniscript::bitcoin::{
-    absolute::LockTime,
-    opcodes::all::OP_RETURN,
-    script::Builder,
-    transaction::{Transaction, TxIn, TxOut, Version},
-    Address, Amount, OutPoint, ScriptBuf, Sequence, Txid, Witness,
-};
+use corepc_node::tempfile::tempdir;
+use corepc_node::{Conf, Node};
+use miniscript::bitcoin::absolute::LockTime;
+use miniscript::bitcoin::opcodes::all::OP_RETURN;
+use miniscript::bitcoin::script::Builder;
+use miniscript::bitcoin::transaction::{Transaction, TxIn, TxOut, Version};
+use miniscript::bitcoin::{Address, Amount, OutPoint, ScriptBuf, Sequence, Txid, Witness};
 use serde_json::Value;
 
 /// Builds an OP_RETURN transaction embedding the provided data.
@@ -23,29 +22,16 @@ pub fn build_op_return_transaction(
         .find(|u| u.get("address") == Some(&Value::String(address.to_string())))
         .ok_or_else(|| anyhow!("No UTXO found for address {}", address))?;
 
-    let txid: Txid = utxo
-        .get("txid")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("Missing txid"))?
-        .parse()?;
-    let vout = utxo
-        .get("vout")
-        .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow!("Missing vout"))? as u32;
-    let amount_btc = utxo
-        .get("amount")
-        .and_then(Value::as_f64)
-        .ok_or_else(|| anyhow!("Missing amount"))?;
+    let txid: Txid =
+        utxo.get("txid").and_then(Value::as_str).ok_or_else(|| anyhow!("Missing txid"))?.parse()?;
+    let vout =
+        utxo.get("vout").and_then(Value::as_u64).ok_or_else(|| anyhow!("Missing vout"))? as u32;
+    let amount_btc =
+        utxo.get("amount").and_then(Value::as_f64).ok_or_else(|| anyhow!("Missing amount"))?;
     let input_value = (amount_btc * 100_000_000.0) as u64;
 
-    let op_return_script = Builder::new()
-        .push_opcode(OP_RETURN)
-        .push_slice(&data)
-        .into_script();
-    let op_return_output = TxOut {
-        value: Amount::from_sat(0),
-        script_pubkey: op_return_script,
-    };
+    let op_return_script = Builder::new().push_opcode(OP_RETURN).push_slice(&data).into_script();
+    let op_return_output = TxOut { value: Amount::from_sat(0), script_pubkey: op_return_script };
 
     let fee = 1000;
     if input_value <= fee {
@@ -81,20 +67,13 @@ pub fn build_p2tr_transaction(node: &Node, funding_address: &Address) -> Result<
         .find(|u| u.get("address") == Some(&Value::String(funding_address.to_string())))
         .ok_or_else(|| anyhow!("No UTXO found for address {}", funding_address))?;
 
-    let txid: Txid = utxo
-        .get("txid")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("Missing txid"))?
-        .parse()?;
-    let vout = utxo
-        .get("vout")
-        .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow!("Missing vout"))? as u32;
-    let input_value = (utxo
-        .get("amount")
-        .and_then(Value::as_f64)
-        .ok_or_else(|| anyhow!("Missing amount"))?
-        * 100_000_000.0) as u64;
+    let txid: Txid =
+        utxo.get("txid").and_then(Value::as_str).ok_or_else(|| anyhow!("Missing txid"))?.parse()?;
+    let vout =
+        utxo.get("vout").and_then(Value::as_u64).ok_or_else(|| anyhow!("Missing vout"))? as u32;
+    let input_value =
+        (utxo.get("amount").and_then(Value::as_f64).ok_or_else(|| anyhow!("Missing amount"))?
+            * 100_000_000.0) as u64;
 
     let dust_limit = 546;
     let num_outputs = 21;
@@ -103,14 +82,10 @@ pub fn build_p2tr_transaction(node: &Node, funding_address: &Address) -> Result<
 
     for _ in 0..num_outputs {
         // Keep retrying until we get a Taproot address
-        let mut addr = node
-            .client
-            .new_address_with_type(corepc_node::AddressType::Bech32m)?;
+        let mut addr = node.client.new_address_with_type(corepc_node::AddressType::Bech32m)?;
 
         while addr.address_type() != Some(BtcAddressType::P2tr) {
-            addr = node
-                .client
-                .new_address_with_type(corepc_node::AddressType::Bech32)?;
+            addr = node.client.new_address_with_type(corepc_node::AddressType::Bech32)?;
         }
 
         outputs.push(TxOut {

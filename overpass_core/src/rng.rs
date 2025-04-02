@@ -1,12 +1,9 @@
-use rand::Error;
-use rand::RngCore;
+use rand::{Error, RngCore};
 
 pub struct WasmRng;
 
 impl WasmRng {
-    pub fn new() -> Self {
-        Self
-    }
+    pub fn new() -> Self { Self }
 }
 
 impl RngCore for WasmRng {

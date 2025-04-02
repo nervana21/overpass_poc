@@ -1,7 +1,6 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use overpass_core::zkp::pedersen_parameters::PedersenParameters;
-use sha2::Digest;
-use sha2::Sha512;
+use sha2::{Digest, Sha512};
 
 fn initialize_pedersen_parameters() -> PedersenParameters {
     // Create a deterministic hash-to-curve implementation
@@ -63,14 +62,8 @@ mod tests {
         // Parameters should be deterministic
         let params2 = initialize_pedersen_parameters();
 
-        assert_eq!(
-            params.g.compress().to_bytes(),
-            params2.g.compress().to_bytes()
-        );
-        assert_eq!(
-            params.h.compress().to_bytes(),
-            params2.h.compress().to_bytes()
-        );
+        assert_eq!(params.g.compress().to_bytes(), params2.g.compress().to_bytes());
+        assert_eq!(params.h.compress().to_bytes(), params2.h.compress().to_bytes());
     }
 
     #[test]
@@ -78,9 +71,6 @@ mod tests {
         let params = initialize_pedersen_parameters();
 
         // G and H points should be different
-        assert_ne!(
-            params.g.compress().to_bytes(),
-            params.h.compress().to_bytes()
-        );
+        assert_ne!(params.g.compress().to_bytes(), params.h.compress().to_bytes());
     }
 }

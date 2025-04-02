@@ -1,9 +1,10 @@
 // src/zkp/pedersen_parameters.rs
 
+use std::fmt::Debug;
+
 use anyhow::{anyhow, Result};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt::Debug;
 
 /// Parameters for Pedersen commitments
 #[derive(Clone)]
@@ -46,9 +47,7 @@ impl<'de> Deserialize<'de> for PedersenParameters {
 
 impl PedersenParameters {
     /// Creates new PedersenParameters with the given points
-    pub fn new(g: RistrettoPoint, h: RistrettoPoint) -> Self {
-        Self { g, h }
-    }
+    pub fn new(g: RistrettoPoint, h: RistrettoPoint) -> Self { Self { g, h } }
 
     /// Creates parameters from compressed bytes
     pub fn from_compressed_bytes(g_bytes: [u8; 32], h_bytes: [u8; 32]) -> Result<Self> {
@@ -98,10 +97,7 @@ impl Default for PedersenParameters {
             RistrettoPoint::from_uniform_bytes(&hash.into())
         };
 
-        Self {
-            g: g_bytes,
-            h: h_bytes,
-        }
+        Self { g: g_bytes, h: h_bytes }
     }
 }
 
@@ -114,10 +110,7 @@ pub struct SerdePedersenParameters {
 
 impl From<PedersenParameters> for SerdePedersenParameters {
     fn from(params: PedersenParameters) -> Self {
-        Self {
-            g: params.g.compress().to_bytes(),
-            h: params.h.compress().to_bytes(),
-        }
+        Self { g: params.g.compress().to_bytes(), h: params.h.compress().to_bytes() }
     }
 }
 
@@ -130,8 +123,9 @@ impl From<SerdePedersenParameters> for PedersenParameters {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json;
+
+    use super::*;
 
     #[test]
     fn test_serialization() -> Result<()> {

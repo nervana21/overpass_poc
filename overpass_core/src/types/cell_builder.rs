@@ -1,9 +1,11 @@
 // src/types/cell_builder.rs
 
-use crate::error::client_errors::{SystemError, SystemErrorType};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+
+use serde::{Deserialize, Serialize};
+
+use crate::error::client_errors::{SystemError, SystemErrorType};
 
 /// Represents a state initialization object.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,12 +51,7 @@ pub struct CellBuilder {
 
 impl CellBuilder {
     /// Creates a new `CellBuilder`.
-    pub fn new() -> Self {
-        Self {
-            cells: HashMap::new(),
-            size: 0,
-        }
-    }
+    pub fn new() -> Self { Self { cells: HashMap::new(), size: 0 } }
 
     /// Adds a cell to the builder.
     pub fn add_cell(&mut self, cell: Cell) -> Result<(), SystemError> {

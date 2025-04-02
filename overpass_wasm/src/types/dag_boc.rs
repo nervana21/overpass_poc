@@ -27,64 +27,38 @@ impl StateUpdate {
         );
 
         // Map state_mapping to pairs of (u32, u32)
-        let state_mapping = state_mapping
-            .chunks(2)
-            .map(|chunk| (chunk[0], chunk[1]))
-            .collect();
+        let state_mapping = state_mapping.chunks(2).map(|chunk| (chunk[0], chunk[1])).collect();
 
         // Initialize the StateUpdate
-        let mut update = StateUpdate {
-            dag_cells,
-            references,
-            roots,
-            hash: Vec::new(),
-            state_mapping,
-            nonce,
-        };
+        let mut update =
+            StateUpdate { dag_cells, references, roots, hash: Vec::new(), state_mapping, nonce };
 
         // Compute the hash
         let mut hasher = Sha256::new();
         hasher.update(&update.dag_cells);
-        update
-            .roots
-            .iter()
-            .for_each(|x| hasher.update(x.to_le_bytes()));
+        update.roots.iter().for_each(|x| hasher.update(x.to_le_bytes()));
         update.hash = hasher.finalize().to_vec();
 
         update
     }
 
-    pub fn dag_cells(&self) -> &[u8] {
-        &self.dag_cells
-    }
+    pub fn dag_cells(&self) -> &[u8] { &self.dag_cells }
 
-    pub fn references(&self) -> &[u32] {
-        &self.references
-    }
+    pub fn references(&self) -> &[u32] { &self.references }
 
-    pub fn roots(&self) -> &[u32] {
-        &self.roots
-    }
+    pub fn roots(&self) -> &[u32] { &self.roots }
 
-    pub fn hash(&self) -> &[u8] {
-        &self.hash
-    }
+    pub fn hash(&self) -> &[u8] { &self.hash }
 
-    pub fn state_mapping(&self) -> &[(u32, u32)] {
-        &self.state_mapping
-    }
+    pub fn state_mapping(&self) -> &[(u32, u32)] { &self.state_mapping }
 
-    pub fn nonce(&self) -> u64 {
-        self.nonce
-    }
+    pub fn nonce(&self) -> u64 { self.nonce }
 
     /// Verifies the integrity of the StateUpdate by recalculating its hash.
     pub fn verify(&self) -> bool {
         let mut hasher = Sha256::new();
         hasher.update(&self.dag_cells);
-        self.roots
-            .iter()
-            .for_each(|x| hasher.update(x.to_le_bytes()));
+        self.roots.iter().for_each(|x| hasher.update(x.to_le_bytes()));
         hasher.finalize().as_slice() == self.hash
     }
 }
@@ -110,9 +84,7 @@ impl StateUpdateWrapper {
         }
 
         if state_mapping.length() % 2 != 0 {
-            return Err(JsValue::from_str(
-                "State mapping must contain pairs of values",
-            ));
+            return Err(JsValue::from_str("State mapping must contain pairs of values"));
         }
 
         // Convert JS arrays to Rust vectors
@@ -138,19 +110,13 @@ impl StateUpdateWrapper {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn roots(&self) -> js_sys::Uint32Array {
-        js_sys::Uint32Array::from(&self.inner.roots[..])
-    }
+    pub fn roots(&self) -> js_sys::Uint32Array { js_sys::Uint32Array::from(&self.inner.roots[..]) }
 
     #[wasm_bindgen(getter)]
-    pub fn hash(&self) -> js_sys::Uint8Array {
-        js_sys::Uint8Array::from(&self.inner.hash[..])
-    }
+    pub fn hash(&self) -> js_sys::Uint8Array { js_sys::Uint8Array::from(&self.inner.hash[..]) }
 
     #[wasm_bindgen(getter)]
-    pub fn nonce(&self) -> u64 {
-        self.inner.nonce
-    }
+    pub fn nonce(&self) -> u64 { self.inner.nonce }
 
     #[wasm_bindgen(getter)]
     pub fn state_mapping(&self) -> js_sys::Array {
@@ -167,15 +133,9 @@ impl StateUpdateWrapper {
     }
 
     #[wasm_bindgen]
-    pub fn verify(&self) -> bool {
-        self.inner.verify()
-    }
+    pub fn verify(&self) -> bool { self.inner.verify() }
 
-    pub(crate) fn get_inner(&self) -> &StateUpdate {
-        &self.inner
-    }
+    pub(crate) fn get_inner(&self) -> &StateUpdate { &self.inner }
 
-    pub(crate) fn into_inner(self) -> StateUpdate {
-        self.inner
-    }
+    pub(crate) fn into_inner(self) -> StateUpdate { self.inner }
 }

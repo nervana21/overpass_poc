@@ -1,14 +1,15 @@
 // overpass_core/tests/e2e_integration_test.rs
 
 use anyhow::{anyhow, Ok};
-use miniscript::bitcoin::{consensus::deserialize, consensus::encode::serialize_hex, Transaction};
-
-use overpass_core::zkp::{
-    channel::ChannelState,
-    helpers::{build_p2tr_transaction, compute_channel_root, hash_state, initialize_funded_node},
-    state_transition::apply_transition,
-    tree::MerkleTree,
+use miniscript::bitcoin::consensus::deserialize;
+use miniscript::bitcoin::consensus::encode::serialize_hex;
+use miniscript::bitcoin::Transaction;
+use overpass_core::zkp::channel::ChannelState;
+use overpass_core::zkp::helpers::{
+    build_p2tr_transaction, compute_channel_root, hash_state, initialize_funded_node,
 };
+use overpass_core::zkp::state_transition::apply_transition;
+use overpass_core::zkp::tree::MerkleTree;
 
 #[test]
 fn test_e2e_pt2r() -> anyhow::Result<()> {
@@ -41,14 +42,8 @@ fn test_e2e_pt2r() -> anyhow::Result<()> {
     transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());
 
     println!("Transition data: {:?}", transition_data);
-    println!(
-        "Delta balance 0: {}",
-        i32::from_le_bytes(transition_data[0..4].try_into().unwrap())
-    );
-    println!(
-        "Delta balance 1: {}",
-        i32::from_le_bytes(transition_data[4..8].try_into().unwrap())
-    );
+    println!("Delta balance 0: {}", i32::from_le_bytes(transition_data[0..4].try_into().unwrap()));
+    println!("Delta balance 1: {}", i32::from_le_bytes(transition_data[4..8].try_into().unwrap()));
 
     // Apply transition to get the next state
     println!("\n=== Applying Transition ===");
@@ -74,9 +69,8 @@ fn test_e2e_pt2r() -> anyhow::Result<()> {
     println!("Next state added to Merkle tree");
 
     println!("\n=== Generating and Verifying Merkle Proof ===");
-    let merkle_proof = smt
-        .get_proof(&next_state_bytes)
-        .ok_or(anyhow!("Failed to generate Merkle proof"))?;
+    let merkle_proof =
+        smt.get_proof(&next_state_bytes).ok_or(anyhow!("Failed to generate Merkle proof"))?;
     println!("Merkle proof generated successfully");
 
     println!("Merkle proof verification started");
@@ -93,13 +87,11 @@ fn test_e2e_pt2r() -> anyhow::Result<()> {
     let tx = build_p2tr_transaction(&node, &address)?;
 
     let tx_hex = serialize_hex(&tx);
-    let signed: serde_json::Value = node
-        .client
-        .call("signrawtransactionwithwallet", &[tx_hex.clone().into()])?;
+    let signed: serde_json::Value =
+        node.client.call("signrawtransactionwithwallet", &[tx_hex.clone().into()])?;
 
-    let signed_hex = signed["hex"]
-        .as_str()
-        .ok_or_else(|| anyhow!("Missing hex from signed transaction"))?;
+    let signed_hex =
+        signed["hex"].as_str().ok_or_else(|| anyhow!("Missing hex from signed transaction"))?;
 
     // Convert the signed hex back into a Transaction
     let tx: Transaction = deserialize(&hex::decode(signed_hex)?)?;

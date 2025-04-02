@@ -1,6 +1,7 @@
+use bitcoin::Network;
+
 use crate::bitcoin::bitcoin_types::{BitcoinLockState, HTLCParameters, StealthAddress};
 use crate::bitcoin::client::BitcoinClient;
-use bitcoin::Network;
 
 #[derive(Debug)]
 pub struct BitcoinRegtest {
@@ -23,8 +24,7 @@ impl BitcoinRegtest {
         hash_lock: [u8; 32],
         timeout_height: u32,
     ) -> HTLCParameters {
-        self.client
-            .create_htlc_parameters(amount, receiver, hash_lock, timeout_height)
+        self.client.create_htlc_parameters(amount, receiver, hash_lock, timeout_height)
     }
 
     pub fn create_lock_state(
@@ -56,8 +56,7 @@ impl BitcoinRegtest {
         value: u64,
         pubkey_hash: [u8; 20],
     ) -> Result<bitcoin::Transaction, String> {
-        self.client
-            .create_transaction(prev_script, value, pubkey_hash)
+        self.client.create_transaction(prev_script, value, pubkey_hash)
     }
 
     pub async fn verify_htlc(

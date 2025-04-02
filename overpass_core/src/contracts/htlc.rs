@@ -33,46 +33,27 @@ impl HTLCContract {
         let mut lock = [0u8; 32];
         lock.copy_from_slice(&hash_lock);
 
-        Self {
-            hash_lock: lock,
-            time_lock,
-            amount,
-            sender,
-            recipient,
-            state: HTLCState::Locked,
-        }
+        Self { hash_lock: lock, time_lock, amount, sender, recipient, state: HTLCState::Locked }
     }
 
     // Getters with #[wasm_bindgen(getter)] attribute
     #[wasm_bindgen(getter)]
-    pub fn hash_lock(&self) -> Vec<u8> {
-        self.hash_lock.to_vec()
-    }
+    pub fn hash_lock(&self) -> Vec<u8> { self.hash_lock.to_vec() }
 
     #[wasm_bindgen(getter)]
-    pub fn time_lock(&self) -> u64 {
-        self.time_lock
-    }
+    pub fn time_lock(&self) -> u64 { self.time_lock }
 
     #[wasm_bindgen(getter)]
-    pub fn amount(&self) -> u64 {
-        self.amount
-    }
+    pub fn amount(&self) -> u64 { self.amount }
 
     #[wasm_bindgen(getter)]
-    pub fn sender(&self) -> Vec<u8> {
-        self.sender.clone()
-    }
+    pub fn sender(&self) -> Vec<u8> { self.sender.clone() }
 
     #[wasm_bindgen(getter)]
-    pub fn recipient(&self) -> Vec<u8> {
-        self.recipient.clone()
-    }
+    pub fn recipient(&self) -> Vec<u8> { self.recipient.clone() }
 
     #[wasm_bindgen(getter)]
-    pub fn state(&self) -> HTLCState {
-        self.state
-    }
+    pub fn state(&self) -> HTLCState { self.state }
 
     /// Claims the HTLC using the preimage.
     #[wasm_bindgen]

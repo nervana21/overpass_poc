@@ -26,20 +26,11 @@ async fn test_state_update() {
             .expect("Failed to create state update");
 
     // Update state
-    channel
-        .update_state(&update)
-        .expect("State update should not fail");
+    channel.update_state(&update).expect("State update should not fail");
 
     // Verify state
-    assert_eq!(
-        channel.state_count(),
-        1,
-        "State count should be 1 after update"
-    );
-    assert!(
-        channel.verify(),
-        "Channel verification should succeed after valid state update"
-    );
+    assert_eq!(channel.state_count(), 1, "State count should be 1 after update");
+    assert!(channel.verify(), "Channel verification should succeed after valid state update");
 }
 
 #[wasm_bindgen_test]
@@ -85,9 +76,7 @@ fn test_multiple_updates() {
         )
         .expect(&format!("Failed to create state update for nonce {i}"));
 
-        channel
-            .update_state(&update)
-            .expect("State update should not fail");
+        channel.update_state(&update).expect("State update should not fail");
 
         let current_hash = channel.hash();
 
@@ -101,15 +90,8 @@ fn test_multiple_updates() {
         last_hash = Some(current_hash);
     }
 
-    assert_eq!(
-        channel.state_count(),
-        3,
-        "State count should reflect the number of updates"
-    );
-    assert!(
-        channel.verify(),
-        "Channel verification should succeed after multiple updates"
-    );
+    assert_eq!(channel.state_count(), 3, "State count should reflect the number of updates");
+    assert!(channel.verify(), "Channel verification should succeed after multiple updates");
 }
 #[wasm_bindgen_test]
 fn test_hash_consistency() {
@@ -117,11 +99,7 @@ fn test_hash_consistency() {
     let hash = channel.hash();
 
     // Hash should be 32 bytes (SHA-256)
-    assert_eq!(
-        hash.length(),
-        32,
-        "Hash length should be 32 bytes for SHA-256"
-    );
+    assert_eq!(hash.length(), 32, "Hash length should be 32 bytes for SHA-256");
 
     let channel2 = ChannelWrapper::new();
     // Empty channels should have the same hash

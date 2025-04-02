@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OpCode {
@@ -72,9 +73,7 @@ pub enum ContractOpCode {
 }
 
 impl From<ContractOpCode> for u8 {
-    fn from(code: ContractOpCode) -> Self {
-        code as u8
-    }
+    fn from(code: ContractOpCode) -> Self { code as u8 }
 }
 impl OpCode {
     #[inline]
@@ -102,19 +101,9 @@ impl OpCode {
 
     pub fn from_u8(value: u8) -> Option<OpCode> {
         match value {
-            0x01 => Some(OpCode::Deploy {
-                code: Vec::new(),
-                initial_state: Vec::new(),
-            }),
-            0x02 => Some(OpCode::Call {
-                contract_id: 0,
-                function: Vec::new(),
-                args: Vec::new(),
-            }),
-            0x03 => Some(OpCode::UpdateState {
-                key: Vec::new(),
-                value: Vec::new(),
-            }),
+            0x01 => Some(OpCode::Deploy { code: Vec::new(), initial_state: Vec::new() }),
+            0x02 => Some(OpCode::Call { contract_id: 0, function: Vec::new(), args: Vec::new() }),
+            0x03 => Some(OpCode::UpdateState { key: Vec::new(), value: Vec::new() }),
             0x04 => Some(OpCode::AddReference { from: 0, to: 0 }),
             0x05 => Some(OpCode::RemoveReference { from: 0, to: 0 }),
             _ => {
@@ -180,21 +169,15 @@ pub enum IntermediateOpCode {
 }
 
 impl From<ChannelOpCode> for u8 {
-    fn from(code: ChannelOpCode) -> Self {
-        code as u8
-    }
+    fn from(code: ChannelOpCode) -> Self { code as u8 }
 }
 
 impl From<WalletOpCode> for u8 {
-    fn from(code: WalletOpCode) -> Self {
-        code as u8
-    }
+    fn from(code: WalletOpCode) -> Self { code as u8 }
 }
 
 impl From<IntermediateOpCode> for u8 {
-    fn from(code: IntermediateOpCode) -> Self {
-        code as u8
-    }
+    fn from(code: IntermediateOpCode) -> Self { code as u8 }
 }
 
 impl TryFrom<u8> for OpCode {

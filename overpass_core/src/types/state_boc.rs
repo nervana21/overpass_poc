@@ -46,17 +46,10 @@ pub struct StateBOC {
 
 impl StateBOC {
     pub fn new() -> Self {
-        StateBOC {
-            state_cells: Vec::new(),
-            references: Vec::new(),
-            roots: Vec::new(),
-            hash: None,
-        }
+        StateBOC { state_cells: Vec::new(), references: Vec::new(), roots: Vec::new(), hash: None }
     }
 
-    pub fn add_cell(&mut self, cell: Cell) {
-        self.state_cells.push(cell);
-    }
+    pub fn add_cell(&mut self, cell: Cell) { self.state_cells.push(cell); }
 
     pub fn serialize(&self) -> Result<Vec<u8>, anyhow::Error> {
         // Implement serialization logic
@@ -87,9 +80,7 @@ impl StateBOC {
 }
 
 impl Default for StateBOC {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl Serialize for StateBOC {

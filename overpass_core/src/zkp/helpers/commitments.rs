@@ -1,7 +1,9 @@
 // src/zkp/commitments.rs
 
-use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
-use rand::{rngs::OsRng, RngCore};
+use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::scalar::Scalar;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use sha2::{Digest, Sha256};
 
 use crate::zkp::pedersen_parameters::PedersenParameters;

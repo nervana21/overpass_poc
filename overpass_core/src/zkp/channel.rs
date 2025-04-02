@@ -1,15 +1,14 @@
 // src/zkp/channel.rs
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+
 use super::pedersen_parameters::PedersenParameters;
 use super::state_proof;
 use crate::zkp::helpers::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
 use crate::zkp::helpers::merkle::compute_channel_root;
 use crate::zkp::helpers::state::{generate_state_proof, hash_state};
-
 use crate::zkp::tree::{MerkleTree, MerkleTreeError};
-
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
 
 /// Represents the state of a channel.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -52,13 +51,7 @@ impl ChannelState {
 
         let proof = Some(state_proof.pi.to_vec());
 
-        Self {
-            balances,
-            nonce: 0,
-            metadata,
-            merkle_root: commitment,
-            proof,
-        }
+        Self { balances, nonce: 0, metadata, merkle_root: commitment, proof }
     }
 
     /// Verifies that the transition from old_state to self is valid.
@@ -86,9 +79,7 @@ impl ChannelState {
         key: Bytes32,
     ) -> Result<(Bytes32, Bytes32), MerkleTreeError> {
         if !self.verify_transition(old_state) {
-            return Err(MerkleTreeError::InvalidInput(
-                "Invalid state transition".to_string(),
-            ));
+            return Err(MerkleTreeError::InvalidInput("Invalid state transition".to_string()));
         }
 
         let new_leaf =
@@ -105,10 +96,8 @@ impl ChannelState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zkp::{
-        state_transition::apply_transition,
-        tree::{MerkleTree, MerkleTreeError},
-    };
+    use crate::zkp::state_transition::apply_transition;
+    use crate::zkp::tree::{MerkleTree, MerkleTreeError};
 
     fn setup_test_channel_state_params() -> (Bytes32, [u64; 2], Vec<u8>, PedersenParameters) {
         // Setup test parameters
@@ -229,10 +218,7 @@ mod tests {
         transition_data[4..8].copy_from_slice(&(20i32).to_le_bytes());
         let result = apply_transition(channel_id, &initial_state, &transition_data);
         assert!(result.is_err());
-        assert_eq!(
-            format!("{}", result.unwrap_err()),
-            "Negative balance is not allowed"
-        );
+        assert_eq!(format!("{}", result.unwrap_err()), "Negative balance is not allowed");
         Ok(())
     }
 
@@ -268,10 +254,7 @@ mod tests {
         transition_data[0..4].copy_from_slice(&(-20i32).to_le_bytes());
         let result = apply_transition(channel_id, &initial_state, &transition_data);
         assert!(result.is_err());
-        assert_eq!(
-            format!("{}", result.unwrap_err()),
-            "Negative balance is not allowed"
-        );
+        assert_eq!(format!("{}", result.unwrap_err()), "Negative balance is not allowed");
         Ok(())
     }
 }

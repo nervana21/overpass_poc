@@ -1,8 +1,8 @@
 // client_errors.rs
 
+use std::{fmt, io};
+
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::io;
 
 /// Represents a result with a success value and an error value.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -43,51 +43,35 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 impl From<SystemError> for Error {
-    fn from(err: SystemError) -> Self {
-        Error::SystemError(err)
-    }
+    fn from(err: SystemError) -> Self { Error::SystemError(err) }
 }
 
 impl From<ChannelError> for Error {
-    fn from(err: ChannelError) -> Self {
-        Error::ChannelError(err)
-    }
+    fn from(err: ChannelError) -> Self { Error::ChannelError(err) }
 }
 
 impl From<ClientError> for Error {
-    fn from(err: ClientError) -> Self {
-        Error::ClientError(err)
-    }
+    fn from(err: ClientError) -> Self { Error::ClientError(err) }
 }
 
 impl From<CellError> for Error {
-    fn from(err: CellError) -> Self {
-        Error::CellError(err)
-    }
+    fn from(err: CellError) -> Self { Error::CellError(err) }
 }
 
 impl From<ZkProofError> for Error {
-    fn from(err: ZkProofError) -> Self {
-        Error::ZkProofError(err)
-    }
+    fn from(err: ZkProofError) -> Self { Error::ZkProofError(err) }
 }
 
 impl From<StateBocError> for Error {
-    fn from(err: StateBocError) -> Self {
-        Error::StateBocError(err)
-    }
+    fn from(err: StateBocError) -> Self { Error::StateBocError(err) }
 }
 
 impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
-        Error::IoError(err.to_string())
-    }
+    fn from(err: io::Error) -> Self { Error::IoError(err.to_string()) }
 }
 
 impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Self {
-        Error::SerializationError(err.to_string())
-    }
+    fn from(err: serde_json::Error) -> Self { Error::SerializationError(err.to_string()) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,19 +176,12 @@ pub struct SystemError {
 
 impl SystemError {
     pub fn new(error_type: SystemErrorType, message: String) -> Self {
-        Self {
-            error_type,
-            message,
-        }
+        Self { error_type, message }
     }
 
-    pub fn error_type(&self) -> SystemErrorType {
-        self.error_type
-    }
+    pub fn error_type(&self) -> SystemErrorType { self.error_type }
 
-    pub fn message(&self) -> &str {
-        &self.message
-    }
+    pub fn message(&self) -> &str { &self.message }
 }
 
 impl fmt::Display for SystemError {
@@ -257,10 +234,7 @@ pub struct ChannelError {
 
 impl ChannelError {
     pub fn new(error_type: ChannelErrorType, message: String) -> Self {
-        Self {
-            error_type,
-            message,
-        }
+        Self { error_type, message }
     }
 }
 
@@ -320,10 +294,7 @@ pub struct ClientError {
 
 impl ClientError {
     pub fn new(error_type: ClientErrorType, message: String) -> Self {
-        Self {
-            error_type,
-            message,
-        }
+        Self { error_type, message }
     }
 }
 
@@ -358,9 +329,7 @@ impl fmt::Display for CellError {
 impl std::error::Error for CellError {}
 
 impl From<io::Error> for CellError {
-    fn from(err: io::Error) -> Self {
-        CellError::IoError(err.to_string())
-    }
+    fn from(err: io::Error) -> Self { CellError::IoError(err.to_string()) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -416,22 +385,18 @@ impl fmt::Display for StateBocError {
             StateBocError::TotalSizeTooLarge => "Total size too large",
             StateBocError::CellDataTooLarge => "Cell data too large",
             StateBocError::TooManyReferences => "Too many references",
-            StateBocError::InvalidReference { from, to } => {
-                return write!(f, "Invalid reference from {} to {}", from, to)
-            }
-            StateBocError::InvalidRoot(index) => {
-                return write!(f, "Invalid root at index {}", index)
-            }
+            StateBocError::InvalidReference { from, to } =>
+                return write!(f, "Invalid reference from {} to {}", from, to),
+            StateBocError::InvalidRoot(index) =>
+                return write!(f, "Invalid root at index {}", index),
             StateBocError::InvalidMerkleProof => "Invalid Merkle proof",
             StateBocError::InvalidPrunedBranch => "Invalid pruned branch",
             StateBocError::CycleDetected => "Cycle detected",
             StateBocError::MaxDepthExceeded => "Max depth exceeded",
-            StateBocError::SerializationError(err) => {
-                return write!(f, "Serialization error: {}", err)
-            }
-            StateBocError::DeserializationError(err) => {
-                return write!(f, "Deserialization error: {}", err)
-            }
+            StateBocError::SerializationError(err) =>
+                return write!(f, "Serialization error: {}", err),
+            StateBocError::DeserializationError(err) =>
+                return write!(f, "Deserialization error: {}", err),
         };
         write!(f, "{}", error_str)
     }

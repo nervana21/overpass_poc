@@ -39,9 +39,6 @@ mod tests {
         assert_eq!(private_key.len(), 32, "Private key must be 32 bytes");
 
         // Ensure keys are different
-        assert_ne!(
-            public_key, private_key,
-            "Public and private keys must not be identical"
-        );
+        assert_ne!(public_key, private_key, "Public and private keys must not be identical");
     }
 }

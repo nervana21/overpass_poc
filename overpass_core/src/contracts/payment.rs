@@ -1,5 +1,6 @@
-use crate::types::state_boc::StateBOC;
 use wasm_bindgen::prelude::*;
+
+use crate::types::state_boc::StateBOC;
 
 #[wasm_bindgen]
 pub struct PaymentChannelContract {
@@ -12,11 +13,7 @@ pub struct PaymentChannelContract {
 impl PaymentChannelContract {
     #[wasm_bindgen(constructor)]
     pub fn new(_alice: Vec<u8>, _bob: Vec<u8>, initial_balance: u64) -> Self {
-        Self {
-            balances: [initial_balance, initial_balance],
-            nonce: 0,
-            state_boc: StateBOC::new(),
-        }
+        Self { balances: [initial_balance, initial_balance], nonce: 0, state_boc: StateBOC::new() }
     }
 
     #[wasm_bindgen]
@@ -46,10 +43,7 @@ impl PaymentChannelContract {
 
     #[wasm_bindgen]
     pub fn settle(&self) -> Result<JsValue, JsValue> {
-        let state = self
-            .state_boc
-            .serialize()
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let state = self.state_boc.serialize().map_err(|e| JsValue::from_str(&e.to_string()))?;
         Ok(serde_wasm_bindgen::to_value(&state).unwrap())
     }
 }

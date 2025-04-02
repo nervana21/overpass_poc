@@ -68,10 +68,7 @@ impl From<StateBOCCell> for Cell {
             cell_type: cell.cell_type,
             data: cell.data,
             references: cell.references.into_iter().map(|x| x as u64).collect(),
-            slice: cell.slice.map(|s| Slice {
-                start: s[0] as u64,
-                end: s[1] as u64,
-            }),
+            slice: cell.slice.map(|s| Slice { start: s[0] as u64, end: s[1] as u64 }),
             nonce: cell.nonce,
             balance: cell.balance,
         }
@@ -90,18 +87,11 @@ pub struct StateBOC {
 impl StateBOC {
     /// Creates a new StateBOC
     pub fn new() -> Self {
-        StateBOC {
-            state_cells: Vec::new(),
-            references: Vec::new(),
-            roots: Vec::new(),
-            hash: None,
-        }
+        StateBOC { state_cells: Vec::new(), references: Vec::new(), roots: Vec::new(), hash: None }
     }
 
     /// Adds a cell to the state
-    pub fn add_cell(&mut self, cell: Cell) {
-        self.state_cells.push(cell);
-    }
+    pub fn add_cell(&mut self, cell: Cell) { self.state_cells.push(cell); }
 
     /// Serializes the StateBOC
     pub fn serialize(&self) -> Result<Vec<u8>> {
@@ -154,15 +144,11 @@ impl StateBOC {
     }
 
     /// Sets the state cells directly
-    pub fn set_state_cells(&mut self, cells: Vec<Cell>) {
-        self.state_cells = cells;
-    }
+    pub fn set_state_cells(&mut self, cells: Vec<Cell>) { self.state_cells = cells; }
 }
 
 impl Default for StateBOC {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl Serialize for StateBOC {

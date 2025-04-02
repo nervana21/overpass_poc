@@ -1,11 +1,11 @@
+use std::sync::Arc;
+
 use bitcoin::{Amount, Network, Transaction, Txid};
 use bitcoincore_rpc::RpcApi;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use thiserror::Error;
-
 #[allow(unused_imports)]
 use serde_json::json;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RpcError {
@@ -36,9 +36,7 @@ pub struct BitcoinRpcConfig {
     pub timeout_seconds: u64,
 }
 
-fn default_timeout() -> u64 {
-    30
-}
+fn default_timeout() -> u64 { 30 }
 
 impl Default for BitcoinRpcConfig {
     fn default() -> Self {
@@ -71,10 +69,7 @@ impl BitcoinRpcClient {
     pub fn new(config: BitcoinRpcConfig) -> Result<Self, RpcError> {
         #[cfg(target_arch = "wasm32")]
         {
-            Ok(Self {
-                config,
-                request_id: std::sync::atomic::AtomicU64::new(1),
-            })
+            Ok(Self { config, request_id: std::sync::atomic::AtomicU64::new(1) })
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -84,10 +79,7 @@ impl BitcoinRpcClient {
                 bitcoincore_rpc::Auth::UserPass(config.user.clone(), config.password.clone()),
             )
             .map_err(RpcError::BitcoinCoreError)?;
-            Ok(Self {
-                inner: Arc::new(client),
-                config,
-            })
+            Ok(Self { inner: Arc::new(client), config })
         }
     }
 
@@ -100,10 +92,7 @@ impl BitcoinRpcClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            Ok(self
-                .inner
-                .get_block_count()
-                .map_err(RpcError::BitcoinCoreError)?)
+            Ok(self.inner.get_block_count().map_err(RpcError::BitcoinCoreError)?)
         }
     }
 
@@ -113,19 +102,14 @@ impl BitcoinRpcClient {
         {
             self.make_request(
                 "getrawtransaction",
-                vec![
-                    serde_json::Value::String(txid.to_string()),
-                    serde_json::Value::Bool(true),
-                ],
+                vec![serde_json::Value::String(txid.to_string()), serde_json::Value::Bool(true)],
             )
             .await
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.inner
-                .get_raw_transaction(txid, None)
-                .map_err(RpcError::BitcoinCoreError)
+            self.inner.get_raw_transaction(txid, None).map_err(RpcError::BitcoinCoreError)
         }
     }
 
@@ -134,18 +118,12 @@ impl BitcoinRpcClient {
         #[cfg(target_arch = "wasm32")]
         {
             let tx_hex = bitcoin::consensus::encode::serialize_hex(tx);
-            self.make_request(
-                "sendrawtransaction",
-                vec![serde_json::Value::String(tx_hex)],
-            )
-            .await
+            self.make_request("sendrawtransaction", vec![serde_json::Value::String(tx_hex)]).await
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.inner
-                .send_raw_transaction(tx)
-                .map_err(RpcError::BitcoinCoreError)
+            self.inner.send_raw_transaction(tx).map_err(RpcError::BitcoinCoreError)
         }
     }
 
@@ -159,9 +137,7 @@ impl BitcoinRpcClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.inner
-                .get_balance(None, None)
-                .map_err(RpcError::BitcoinCoreError)
+            self.inner.get_balance(None, None).map_err(RpcError::BitcoinCoreError)
         }
     }
 
@@ -175,9 +151,7 @@ impl BitcoinRpcClient {
 
         let request = RpcRequest {
             jsonrpc: "2.0".to_string(),
-            id: self
-                .request_id
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            id: self.request_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             method: method.to_string(),
             params,
         };
@@ -201,16 +175,15 @@ impl BitcoinRpcClient {
         match (rpc_response.result, rpc_response.error) {
             (Some(result), None) => Ok(result),
             (None, Some(error)) => Err(RpcError::JsonRpcError(error.message)),
-            _ => Err(RpcError::InvalidResponse(
-                "Invalid response structure".to_string(),
-            )),
+            _ => Err(RpcError::InvalidResponse("Invalid response structure".to_string())),
         }
     }
 }
 #[cfg(test)]
 mod tests {
-    use crate::zkp::helpers::initialize_funded_node;
     use anyhow::{Ok, Result};
+
+    use crate::zkp::helpers::initialize_funded_node;
 
     #[tokio::test]
     async fn test_get_block_count() -> Result<()> {

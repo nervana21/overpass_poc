@@ -1,9 +1,11 @@
 // src/bitcoin/bitcoin_types.rs
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use bitcoin::hashes::{sha256d, Hash, HashEngine};
 use bitcoin::secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -17,24 +19,14 @@ pub struct StealthAddress {
 
 impl StealthAddress {
     pub fn new(scan_pubkey: PublicKey, spend_pubkey: PublicKey, view_tag: [u8; 32]) -> Self {
-        Self {
-            scan_pubkey,
-            spend_pubkey,
-            view_tag,
-        }
+        Self { scan_pubkey, spend_pubkey, view_tag }
     }
 
-    pub fn get_scan_pubkey(&self) -> &PublicKey {
-        &self.scan_pubkey
-    }
+    pub fn get_scan_pubkey(&self) -> &PublicKey { &self.scan_pubkey }
 
-    pub fn get_spend_pubkey(&self) -> &PublicKey {
-        &self.spend_pubkey
-    }
+    pub fn get_spend_pubkey(&self) -> &PublicKey { &self.spend_pubkey }
 
-    pub fn get_view_tag(&self) -> u8 {
-        self.view_tag[0]
-    }
+    pub fn get_view_tag(&self) -> u8 { self.view_tag[0] }
 }
 
 #[derive(Error, Debug)]
@@ -66,12 +58,7 @@ pub struct HTLCParameters {
 
 impl HTLCParameters {
     pub fn new(amount: u64, receiver: [u8; 20], hash_lock: [u8; 32], timeout_height: u32) -> Self {
-        Self {
-            amount,
-            receiver,
-            hash_lock,
-            timeout_height,
-        }
+        Self { amount, receiver, hash_lock, timeout_height }
     }
 
     pub fn check_timelock(&self, current_height: u32) -> bool {
@@ -107,15 +94,7 @@ impl OpReturnMetadata {
         version: i32,
         nonce: [u8; 32],
     ) -> Self {
-        Self {
-            channel_id,
-            rebalancing_flags,
-            hash_lock,
-            data,
-            stealth_address,
-            version,
-            nonce,
-        }
+        Self { channel_id, rebalancing_flags, hash_lock, data, stealth_address, version, nonce }
     }
 
     pub fn encode(&self) -> Result<Vec<u8>, BitcoinStateError> {

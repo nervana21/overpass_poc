@@ -1,11 +1,12 @@
 // src/privacy/stealth_addresses.rs
 
+use bitcoin::secp256k1::{All, PublicKey, Scalar, Secp256k1, SecretKey};
+use rand::rngs::ThreadRng;
+use rand::thread_rng;
+use sha2::{Digest, Sha256};
+
 use crate::bitcoin::bitcoin_types::StealthAddress;
 use crate::error::client_errors::{SystemError, SystemErrorType};
-
-use bitcoin::secp256k1::{All, PublicKey, Scalar, Secp256k1, SecretKey};
-use rand::{rngs::ThreadRng, thread_rng};
-use sha2::{Digest, Sha256};
 
 /// A struct representing a stealth address manager.
 #[derive(Clone, Debug)]
@@ -15,22 +16,14 @@ pub struct StealthAddressManager {
 }
 
 impl StealthAddressManager {
-    pub fn new() -> Self {
-        Self {
-            curve: Secp256k1::new(),
-            rng: thread_rng(),
-        }
-    }
+    pub fn new() -> Self { Self { curve: Secp256k1::new(), rng: thread_rng() } }
 
     pub fn generate_stealth_address(
         &mut self,
         recipient_key: &PublicKey,
     ) -> Result<StealthAddress, SystemError> {
-        StealthAddressGenerator {
-            curve: self.curve.clone(),
-            rng: self.rng.clone(),
-        }
-        .generate_stealth_address(recipient_key)
+        StealthAddressGenerator { curve: self.curve.clone(), rng: self.rng.clone() }
+            .generate_stealth_address(recipient_key)
     }
 }
 

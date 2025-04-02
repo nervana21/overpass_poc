@@ -104,12 +104,13 @@ impl OverpassDB {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use anyhow::Result;
-    use std::env;
-    use std::fs;
     use std::path::{Path, PathBuf};
+    use std::{env, fs};
+
+    use anyhow::Result;
     use uuid::Uuid;
+
+    use super::*;
 
     /// Sets up a new OverpassDB instance in a unique temporary directory.
     /// Returns a tuple of (OverpassDB, PathBuf) where the PathBuf is the unique database path.
@@ -123,9 +124,8 @@ mod tests {
         // Append "db" to form the database path.
         let db_path = temp_dir.join("db");
         // Convert the db_path to a string.
-        let db_path_str = db_path
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("Invalid database path"))?;
+        let db_path_str =
+            db_path.to_str().ok_or_else(|| anyhow::anyhow!("Invalid database path"))?;
         let db = OverpassDB::new(db_path_str)?;
         Ok((db, temp_dir))
     }
@@ -148,38 +148,19 @@ mod tests {
         let get_result2 = db.get(b"key2")?;
         let get_result3 = db.get(b"key3")?;
 
-        assert_eq!(
-            get_result1,
-            Some(b"value1".to_vec()),
-            "Incorrect value for key1"
-        );
-        assert_eq!(
-            get_result2,
-            Some(b"value2".to_vec()),
-            "Incorrect value for key2"
-        );
+        assert_eq!(get_result1, Some(b"value1".to_vec()), "Incorrect value for key1");
+        assert_eq!(get_result2, Some(b"value2".to_vec()), "Incorrect value for key2");
         assert_eq!(get_result3, None, "Non-existent key should return None");
 
         let delete_result = db.delete(b"key1")?;
-        assert_eq!(
-            delete_result,
-            Some(b"value1".to_vec()),
-            "Incorrect deleted value"
-        );
+        assert_eq!(delete_result, Some(b"value1".to_vec()), "Incorrect deleted value");
 
         let get_after_delete = db.get(b"key1")?;
-        assert_eq!(
-            get_after_delete, None,
-            "Key should not exist after deletion"
-        );
+        assert_eq!(get_after_delete, None, "Key should not exist after deletion");
 
         db.put(b"key2", b"new_value2")?;
         let updated_value = db.get(b"key2")?;
-        assert_eq!(
-            updated_value,
-            Some(b"new_value2".to_vec()),
-            "Value not updated correctly"
-        );
+        assert_eq!(updated_value, Some(b"new_value2".to_vec()), "Value not updated correctly");
 
         // Teardown the temporary directory.
         teardown_db(temp_dir.as_path());

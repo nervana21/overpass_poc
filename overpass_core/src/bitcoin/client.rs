@@ -1,16 +1,18 @@
 // src/bitcoin/client.rs
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use bitcoin::blockdata::script::ScriptBuf;
+use bitcoin::opcodes::all::OP_RETURN;
+use bitcoin::script::Builder;
+use bitcoin::transaction::Version;
+use bitcoin::{locktime, Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
+use tokio::sync::RwLock;
+
 use crate::bitcoin::bitcoin_types::{
     BitcoinLockState, HTLCParameters, OpReturnMetadata, StealthAddress,
 };
-use bitcoin::transaction::Version;
-use bitcoin::{
-    blockdata::script::ScriptBuf, locktime, opcodes::all::OP_RETURN, script::Builder, Amount,
-    OutPoint, Sequence, Transaction, TxIn, TxOut, Witness,
-};
-
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::RwLock;
 
 /// Represents a Bitcoin client managing state and operations.
 #[derive(Debug, Clone)]
@@ -20,11 +22,7 @@ pub struct BitcoinClient {
 
 impl BitcoinClient {
     /// Creates a new Bitcoin client with an empty state cache.
-    pub fn new() -> Self {
-        Self {
-            state_cache: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
+    pub fn new() -> Self { Self { state_cache: Arc::new(RwLock::new(HashMap::new())) } }
 
     /// Creates HTLC parameters for locking channels.
     pub fn create_htlc_parameters(
@@ -34,12 +32,7 @@ impl BitcoinClient {
         hash_lock: [u8; 32],
         timeout_height: u32,
     ) -> HTLCParameters {
-        HTLCParameters {
-            amount,
-            receiver,
-            hash_lock,
-            timeout_height,
-        }
+        HTLCParameters { amount, receiver, hash_lock, timeout_height }
     }
 
     /// Creates an OP_RETURN script with encoded metadata.
@@ -47,18 +40,13 @@ impl BitcoinClient {
         &self,
         metadata: &OpReturnMetadata,
     ) -> Result<ScriptBuf, String> {
-        let encoded = metadata
-            .encode()
-            .map_err(|e| format!("Failed to encode metadata: {}", e))?;
+        let encoded = metadata.encode().map_err(|e| format!("Failed to encode metadata: {}", e))?;
 
         // Create PushBytesBuf from encoded bytes
         let push_bytes = bitcoin::script::PushBytesBuf::try_from(encoded)
             .map_err(|e| format!("Failed to create PushBytesBuf: {}", e))?;
 
-        Ok(Builder::new()
-            .push_opcode(OP_RETURN)
-            .push_slice(&push_bytes)
-            .into_script())
+        Ok(Builder::new().push_opcode(OP_RETURN).push_slice(&push_bytes).into_script())
     }
 
     /// Creates a new Bitcoin transaction.
@@ -83,10 +71,7 @@ impl BitcoinClient {
             .push_opcode(bitcoin::opcodes::all::OP_CHECKSIG)
             .into_script();
 
-        let tx_out = TxOut {
-            value: Amount::from_sat(value),
-            script_pubkey,
-        };
+        let tx_out = TxOut { value: Amount::from_sat(value), script_pubkey };
 
         let tx = Transaction {
             version: Version(2),

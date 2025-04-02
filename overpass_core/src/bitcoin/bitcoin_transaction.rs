@@ -1,8 +1,9 @@
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+
 use bitcoin::hashes::Hash;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
 /// A conceptual Bitcoin transaction struct.
@@ -16,9 +17,7 @@ pub struct BitcoinTransaction {
 
 impl BitcoinTransaction {
     /// Serializes the transaction to bytes (example, in reality you'd handle raw tx hex).
-    pub fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap()
-    }
+    pub fn to_bytes(&self) -> Vec<u8> { serde_json::to_vec(self).unwrap() }
 
     /// Deserializes the transaction from bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, BitcoinClientError> {
@@ -157,11 +156,7 @@ impl BitcoinClient {
         let timelock = current_height + 144; // roughly 24 hours worth of blocks
 
         // Create HTLC parameters
-        let params = HTLCParams {
-            preimage,
-            hash: hash.to_byte_array(),
-            timelock,
-        };
+        let params = HTLCParams { preimage, hash: hash.to_byte_array(), timelock };
 
         Ok(params)
     }

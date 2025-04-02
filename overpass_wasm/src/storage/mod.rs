@@ -16,9 +16,8 @@ impl ClientStorage {
         // Get window.localStorage
         let window: Window =
             web_sys::window().ok_or_else(|| JsValue::from_str("No window found"))?;
-        let storage = window
-            .local_storage()?
-            .ok_or_else(|| JsValue::from_str("No localStorage found"))?;
+        let storage =
+            window.local_storage()?.ok_or_else(|| JsValue::from_str("No localStorage found"))?;
 
         Ok(Self { storage })
     }

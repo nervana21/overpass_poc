@@ -1,17 +1,15 @@
 // src/zkp/bitcoin_ephemeral_state.rs
 
-use anyhow::{anyhow, Context, Result};
-use bitcoin::blockdata::script::Builder;
-use bitcoin::secp256k1::{All, Secp256k1, SecretKey};
-use bitcoin::PublicKey;
-use bitcoin::{
-    blockdata::transaction::{Transaction, TxOut},
-    consensus::encode,
-    Address, Amount, Network, OutPoint, ScriptBuf,
-};
-use bitcoincore_rpc::{Auth, Client, RpcApi};
 use std::collections::HashMap;
 use std::str::FromStr;
+
+use anyhow::{anyhow, Context, Result};
+use bitcoin::blockdata::script::Builder;
+use bitcoin::blockdata::transaction::{Transaction, TxOut};
+use bitcoin::consensus::encode;
+use bitcoin::secp256k1::{All, Secp256k1, SecretKey};
+use bitcoin::{Address, Amount, Network, OutPoint, PublicKey, ScriptBuf};
+use bitcoincore_rpc::{Auth, Client, RpcApi};
 
 /// Represents a simple Bitcoin client for testing purposes.
 pub struct BitcoinClient {
@@ -34,41 +32,26 @@ impl BitcoinClient {
         let rpc = Client::new(rpc_url, auth)
             .context("Failed to create RPC client. Check RPC URL and credentials.")?;
 
-        Ok(Self {
-            rpc,
-            utxos: HashMap::new(),
-            secp: Secp256k1::new(),
-            network,
-        })
+        Ok(Self { rpc, utxos: HashMap::new(), secp: Secp256k1::new(), network })
     }
 
     /// Retrieves a new Bitcoin address.
     pub fn get_new_address(&self) -> Result<Address> {
-        let address = self
-            .rpc
-            .get_new_address(None, None)
-            .context("Failed to get new address")?;
+        let address = self.rpc.get_new_address(None, None).context("Failed to get new address")?;
         Ok(address.assume_checked())
     }
 
     /// Generates a specified number of blocks to the given address (Regtest only).
     pub fn generate_blocks(&self, count: u32, address: &str) -> Result<()> {
-        let addr = Address::from_str(address)
-            .context("Invalid Bitcoin address")?
-            .assume_checked();
-        self.rpc
-            .generate_to_address(count.into(), &addr)
-            .context("Failed to generate blocks")?;
+        let addr = Address::from_str(address).context("Invalid Bitcoin address")?.assume_checked();
+        self.rpc.generate_to_address(count.into(), &addr).context("Failed to generate blocks")?;
         Ok(())
     }
 
     /// Returns the total wallet balance in satoshis, including confirmed and unconfirmed UTXOs.
     /// This function reflects the wallet's complete spendable balance (excluding locked or immature funds).
     pub fn get_balance(&self) -> Result<u64> {
-        let balance = self
-            .rpc
-            .get_balance(None, None)
-            .context("Failed to get balance")?;
+        let balance = self.rpc.get_balance(None, None).context("Failed to get balance")?;
         Ok(balance.to_sat())
     }
 
@@ -96,14 +79,8 @@ impl BitcoinClient {
             .context("Failed to list unspent transactions")?;
         for utxo in utxos {
             let txid = utxo.txid.to_string();
-            let tx_out = TxOut {
-                value: utxo.amount,
-                script_pubkey: utxo.script_pub_key,
-            };
-            let outpoint = OutPoint {
-                txid: utxo.txid,
-                vout: utxo.vout,
-            };
+            let tx_out = TxOut { value: utxo.amount, script_pubkey: utxo.script_pub_key };
+            let outpoint = OutPoint { txid: utxo.txid, vout: utxo.vout };
             self.utxos.insert(txid, (tx_out, outpoint));
         }
         Ok(())
@@ -126,10 +103,8 @@ impl BitcoinClient {
 
     /// Sends a raw transaction given its hex representation.
     pub fn send_raw_transaction_hex(&self, raw_tx_hex: &str) -> Result<String> {
-        let tx = self
-            .rpc
-            .send_raw_transaction(raw_tx_hex)
-            .context("Failed to send raw transaction")?;
+        let tx =
+            self.rpc.send_raw_transaction(raw_tx_hex).context("Failed to send raw transaction")?;
         Ok(tx.to_string())
     }
 

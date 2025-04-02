@@ -1,19 +1,18 @@
 // src/bitcoin/client.rs
 // src/bitcoin/scripts.rs
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use bitcoin::opcodes::all::OP_RETURN;
-use bitcoin::script::Builder;
-use bitcoin::script::PushBytesBuf;
+use bitcoin::script::{Builder, PushBytesBuf};
 use bitcoin::transaction::Version;
-use bitcoin::{Amount, OutPoint, ScriptBuf, Transaction, TxIn};
+use bitcoin::{locktime, Amount, OutPoint, ScriptBuf, Transaction, TxIn};
+use tokio::sync::RwLock;
 
 use crate::bitcoin::bitcoin_types::{
     BitcoinLockState, HTLCParameters, OpReturnMetadata, StealthAddress,
 };
-use bitcoin::locktime;
-
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::RwLock;
 
 /// Represents a Bitcoin client managing state and operations.
 #[derive(Debug, Clone)]
@@ -23,11 +22,7 @@ pub struct BitcoinClient {
 
 impl BitcoinClient {
     /// Creates a new Bitcoin client with an empty state cache.
-    pub fn new() -> Self {
-        Self {
-            state_cache: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
+    pub fn new() -> Self { Self { state_cache: Arc::new(RwLock::new(HashMap::new())) } }
 
     /// Creates HTLC parameters for locking channels.
     pub fn create_htlc_parameters(
@@ -37,12 +32,7 @@ impl BitcoinClient {
         hash_lock: [u8; 32],
         timeout_height: u32,
     ) -> HTLCParameters {
-        HTLCParameters {
-            amount,
-            receiver,
-            hash_lock,
-            timeout_height,
-        }
+        HTLCParameters { amount, receiver, hash_lock, timeout_height }
     }
     /// Creates an OP_RETURN script with encoded metadata.
     /// Creates an OP_RETURN script with encoded metadata.
@@ -52,17 +42,12 @@ impl BitcoinClient {
         &self,
         metadata: &OpReturnMetadata,
     ) -> Result<ScriptBuf, String> {
-        let encoded = metadata
-            .encode()
-            .map_err(|e| format!("Failed to encode metadata: {}", e))?;
+        let encoded = metadata.encode().map_err(|e| format!("Failed to encode metadata: {}", e))?;
 
         let push_bytes = PushBytesBuf::try_from(encoded)
             .map_err(|e| format!("Invalid metadata bytes: {}", e))?;
 
-        Ok(Builder::new()
-            .push_opcode(OP_RETURN)
-            .push_slice(&push_bytes)
-            .into_script())
+        Ok(Builder::new().push_opcode(OP_RETURN).push_slice(&push_bytes).into_script())
     }
     /// Creates a new Bitcoin transaction.
     /// This function creates a new Bitcoin transaction with the given parameters.
@@ -150,10 +135,10 @@ impl BitcoinClient {
 }
 #[cfg(test)]
 mod tests {
-    use crate::bitcoin::bitcoin_types::OpReturnMetadata;
+    use bitcoin::hashes::{sha256, Hash};
 
     use super::*;
-    use bitcoin::hashes::{sha256, Hash};
+    use crate::bitcoin::bitcoin_types::OpReturnMetadata;
 
     #[test]
     fn test_create_htlc_parameters() {
@@ -220,10 +205,7 @@ mod tests {
         let test_hash = [1u8; 32];
         let test_data = vec![1, 2, 3, 4];
 
-        client
-            .cache_state(test_hash, test_data.clone())
-            .await
-            .unwrap();
+        client.cache_state(test_hash, test_data.clone()).await.unwrap();
         let cached = client.get_cached_state(test_hash).await;
 
         assert_eq!(cached, Some(test_data));

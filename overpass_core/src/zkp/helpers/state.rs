@@ -1,15 +1,16 @@
 // src/zkp/state.rs
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use plonky2::hash::poseidon::PoseidonHash;
+use plonky2::plonk::config::Hasher;
+use plonky2_field::goldilocks_field::GoldilocksField;
+use plonky2_field::types::{Field, PrimeField64};
+use sha2::{Digest, Sha256};
+
 use crate::zkp::channel::ChannelState;
 use crate::zkp::helpers::commitments::Bytes32;
 use crate::zkp::pedersen_parameters::PedersenParameters;
-use plonky2::{hash::poseidon::PoseidonHash, plonk::config::Hasher};
-use plonky2_field::{
-    goldilocks_field::GoldilocksField,
-    types::{Field, PrimeField64},
-};
-use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Converts ChannelState into a 32-byte hash using PoseidonHash.
 pub fn hash_state(state: &ChannelState) -> anyhow::Result<Bytes32> {
@@ -36,9 +37,7 @@ pub fn hash_state(state: &ChannelState) -> anyhow::Result<Bytes32> {
 }
 
 pub fn current_timestamp() -> u64 {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
     now.as_secs()
 }
 
@@ -76,10 +75,7 @@ pub fn verify_wallet_proof(
     }
 
     let mut hasher = Sha256::new();
-    proof
-        .public_inputs
-        .iter()
-        .for_each(|input| hasher.update(input));
+    proof.public_inputs.iter().for_each(|input| hasher.update(input));
     hasher.update(proof.timestamp.to_le_bytes());
     hasher.update(proof.params.g.compress().as_bytes());
     hasher.update(proof.params.h.compress().as_bytes());
@@ -160,12 +156,7 @@ mod tests {
         assert_eq!(proof.public_inputs[1], new_commitment);
         assert_eq!(proof.public_inputs[2], merkle_root);
 
-        assert!(verify_wallet_proof(
-            &old_commitment,
-            &new_commitment,
-            &proof,
-            &params
-        ));
+        assert!(verify_wallet_proof(&old_commitment, &new_commitment, &proof, &params));
     }
 
     #[test]

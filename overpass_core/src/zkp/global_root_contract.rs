@@ -1,17 +1,17 @@
 // src/zkp/global_root_contract.rs
 
-use crate::zkp::helpers::commitments::Bytes32;
-use crate::zkp::helpers::merkle::compute_global_root;
-use crate::zkp::helpers::state::verify_wallet_proof;
-
-use crate::zkp::pedersen_parameters::{PedersenParameters, SerdePedersenParameters};
-use anyhow::Result;
 use std::collections::HashMap;
+
+use anyhow::Result;
 use thiserror::Error;
 
 use super::helpers::state::StateProof as HelperStateProof;
 use super::state_proof::{self, StateProof};
 use super::tree::{MerkleTree, MerkleTreeError};
+use crate::zkp::helpers::commitments::Bytes32;
+use crate::zkp::helpers::merkle::compute_global_root;
+use crate::zkp::helpers::state::verify_wallet_proof;
+use crate::zkp::pedersen_parameters::{PedersenParameters, SerdePedersenParameters};
 
 /// Represents errors in GlobalRootContract operations.
 #[derive(Error, Debug)]
@@ -128,10 +128,8 @@ impl GlobalRootContract {
         // .ok_or(GlobalRootContractError::WalletNotFound)?
         // .clone();
 
-        let old_root = *self
-            .wallet_roots
-            .get(&wallet_id)
-            .ok_or(GlobalRootContractError::WalletNotFound)?;
+        let old_root =
+            *self.wallet_roots.get(&wallet_id).ok_or(GlobalRootContractError::WalletNotFound)?;
 
         // Convert state_proof::StateProof to helpers::StateProof for verification
         let helper_proof = HelperStateProof {
@@ -166,9 +164,7 @@ impl GlobalRootContract {
     }
 
     /// Lists all registered wallet IDs.
-    pub fn list_wallets(&self) -> Vec<Bytes32> {
-        self.wallet_roots.keys().copied().collect()
-    }
+    pub fn list_wallets(&self) -> Vec<Bytes32> { self.wallet_roots.keys().copied().collect() }
 
     /// Gets the last proof for a wallet.
     pub fn get_latest_proof(&self, wallet_id: &Bytes32) -> Option<&StateProof> {
@@ -176,19 +172,15 @@ impl GlobalRootContract {
     }
 
     /// Retrieves the current global Merkle root.
-    pub fn get_global_merkle_root(&self) -> Bytes32 {
-        self.merkle_root
-    }
+    pub fn get_global_merkle_root(&self) -> Bytes32 { self.merkle_root }
 
     /// Generates a Merkle proof for a given wallet.
     pub fn generate_proof(
         &self,
         wallet_id: Bytes32,
     ) -> Result<Vec<Bytes32>, GlobalRootContractError> {
-        let wallet_merkle_root = self
-            .wallet_roots
-            .get(&wallet_id)
-            .ok_or(GlobalRootContractError::WalletNotFound)?;
+        let wallet_merkle_root =
+            self.wallet_roots.get(&wallet_id).ok_or(GlobalRootContractError::WalletNotFound)?;
 
         self.merkle_tree
             .get_proof(wallet_merkle_root)
@@ -201,23 +193,17 @@ impl GlobalRootContract {
         wallet_id: Bytes32,
         proof: &[Bytes32],
     ) -> Result<bool, GlobalRootContractError> {
-        let wallet_root = self
-            .wallet_roots
-            .get(&wallet_id)
-            .ok_or(GlobalRootContractError::WalletNotFound)?;
+        let wallet_root =
+            self.wallet_roots.get(&wallet_id).ok_or(GlobalRootContractError::WalletNotFound)?;
 
-        Ok(self
-            .merkle_tree
-            .verify_proof(wallet_root, proof, &self.merkle_root))
+        Ok(self.merkle_tree.verify_proof(wallet_root, proof, &self.merkle_root))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::zkp::helpers::state::current_timestamp;
-    use crate::zkp::helpers::state::generate_state_proof;
-
     use super::*;
+    use crate::zkp::helpers::state::{current_timestamp, generate_state_proof};
 
     fn setup_test_contract() -> GlobalRootContract {
         let params = PedersenParameters::default();
@@ -249,17 +235,11 @@ mod tests {
         contract.register_wallet(wallet_id, wallet_merkle_root)?;
 
         assert!(contract.wallet_roots.contains_key(&wallet_id));
-        assert_eq!(
-            contract.get_wallet_root(&wallet_id),
-            Some(wallet_merkle_root)
-        );
+        assert_eq!(contract.get_wallet_root(&wallet_id), Some(wallet_merkle_root));
 
         // Try registering same wallet again
         let result = contract.register_wallet(wallet_id, wallet_merkle_root);
-        assert!(matches!(
-            result,
-            Err(GlobalRootContractError::WalletAlreadyRegistered)
-        ));
+        assert!(matches!(result, Err(GlobalRootContractError::WalletAlreadyRegistered)));
 
         Ok(())
     }
@@ -301,10 +281,7 @@ mod tests {
         let invalid_wallet = [22u8; 32];
         let invalid_result =
             contract.update_wallet(invalid_wallet, new_global_merkle_root, mock_proof.clone());
-        assert!(matches!(
-            invalid_result,
-            Err(GlobalRootContractError::WalletNotFound)
-        ));
+        assert!(matches!(invalid_result, Err(GlobalRootContractError::WalletNotFound)));
 
         Ok(())
     }

@@ -1,7 +1,8 @@
 // src/zkp/merkle.rs
 
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+
+use sha2::{Digest, Sha256};
 
 pub type Bytes32 = [u8; 32];
 
@@ -32,10 +33,7 @@ pub fn compute_merkle_root(mut leaves: Vec<Bytes32>) -> Bytes32 {
         if leaves.len() % 2 != 0 {
             leaves.push(*leaves.last().unwrap());
         }
-        leaves = leaves
-            .chunks(2)
-            .map(|pair| hash_pair(pair[0], pair[1]))
-            .collect();
+        leaves = leaves.chunks(2).map(|pair| hash_pair(pair[0], pair[1])).collect();
     }
     leaves[0]
 }
@@ -50,10 +48,7 @@ pub fn compute_global_root_from_sorted(sorted_hashes: &[Bytes32]) -> Bytes32 {
         if current_level.len() % 2 != 0 {
             current_level.push(*current_level.last().unwrap());
         }
-        current_level = current_level
-            .chunks(2)
-            .map(|pair| hash_pair(pair[0], pair[1]))
-            .collect();
+        current_level = current_level.chunks(2).map(|pair| hash_pair(pair[0], pair[1])).collect();
     }
     current_level[0]
 }

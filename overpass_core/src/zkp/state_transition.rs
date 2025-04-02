@@ -1,28 +1,22 @@
 // src/zkp/state_transition.rs
 
-use crate::zkp::channel::ChannelState;
-use crate::zkp::tree::{MerkleProof, MerkleTree};
-use anyhow::{anyhow, Context, Result};
-use plonky2::plonk::config::Hasher;
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    hash::{
-        hash_types::{HashOut, HashOutTarget},
-        poseidon::PoseidonHash,
-    },
-    iop::witness::{PartialWitness, WitnessWrite},
-    plonk::{
-        circuit_builder::CircuitBuilder,
-        circuit_data::{CircuitConfig, CircuitData},
-        config::PoseidonGoldilocksConfig,
-        proof::ProofWithPublicInputs,
-    },
-};
-use plonky2_field::types::{Field, PrimeField64};
 use std::collections::HashMap;
 
+use anyhow::{anyhow, Context, Result};
+use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::hash::hash_types::{HashOut, HashOutTarget};
+use plonky2::hash::poseidon::PoseidonHash;
+use plonky2::iop::witness::{PartialWitness, WitnessWrite};
+use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
+use plonky2::plonk::config::{Hasher, PoseidonGoldilocksConfig};
+use plonky2::plonk::proof::ProofWithPublicInputs;
+use plonky2_field::types::{Field, PrimeField64};
+
+use crate::zkp::channel::ChannelState;
 use crate::zkp::helpers::merkle::compute_channel_root;
 use crate::zkp::helpers::state::hash_state;
+use crate::zkp::tree::{MerkleProof, MerkleTree};
 
 /// Type alias for Poseidon configuration
 type PoseidonConfig = PoseidonGoldilocksConfig;
@@ -65,10 +59,7 @@ impl StateTransitionCircuit {
 
         // Enforce that the computed hash matches the declared next state.
         for i in 0..4 {
-            builder.connect(
-                computed_next_state.elements[i],
-                next_state_target.elements[i],
-            );
+            builder.connect(computed_next_state.elements[i], next_state_target.elements[i]);
         }
 
         // Finalize the circuit.
@@ -118,9 +109,7 @@ impl StateTransitionCircuit {
             .context("Failed to set next state hash")?;
 
         // Generate and return the proof.
-        self.circuit_data
-            .prove(pw)
-            .context("Proof generation failed")
+        self.circuit_data.prove(pw).context("Proof generation failed")
     }
 
     /// Verifies a zero-knowledge proof for a state transition.
@@ -128,10 +117,7 @@ impl StateTransitionCircuit {
         &self,
         proof: ProofWithPublicInputs<GoldilocksField, PoseidonConfig, 2>,
     ) -> Result<bool> {
-        self.circuit_data
-            .verify(proof)
-            .map(|_| true)
-            .context("Proof verification failed")
+        self.circuit_data.verify(proof).map(|_| true).context("Proof verification failed")
     }
 
     /// Converts a byte array to a Poseidon HashOut.
@@ -142,9 +128,7 @@ impl StateTransitionCircuit {
                 let bytes: [u8; 8] = chunk
                     .try_into()
                     .map_err(|_| anyhow!("Invalid byte length for field element"))?;
-                Ok(GoldilocksField::from_canonical_u64(u64::from_le_bytes(
-                    bytes,
-                )))
+                Ok(GoldilocksField::from_canonical_u64(u64::from_le_bytes(bytes)))
             })
             .collect::<Result<Vec<_>, anyhow::Error>>()?;
 
@@ -196,9 +180,7 @@ impl StateTransitionCircuit {
     /// Generates a Merkle proof for a channel's transaction history.
     pub fn generate_merkle_proof(&self, channel_id: [u8; 32]) -> Option<MerkleProof> {
         self.channel_roots.get(&channel_id).and_then(|root| {
-            self.merkle_tree
-                .get_proof(root)
-                .map(|proof| MerkleProof { path: proof })
+            self.merkle_tree.get_proof(root).map(|proof| MerkleProof { path: proof })
         })
     }
 
@@ -213,9 +195,7 @@ impl StateTransitionCircuit {
 }
 
 impl Default for StateTransitionCircuit {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 /// Applies transition data to the initial state to produce the next state.
@@ -225,27 +205,17 @@ pub fn apply_transition(
     transition_data: &[u8; 32],
 ) -> Result<ChannelState> {
     let delta_balance_0 = i32::from_le_bytes(
-        transition_data[0..4]
-            .try_into()
-            .context("Failed to parse delta_balance_0")?,
+        transition_data[0..4].try_into().context("Failed to parse delta_balance_0")?,
     );
     let delta_balance_1 = i32::from_le_bytes(
-        transition_data[4..8]
-            .try_into()
-            .context("Failed to parse delta_balance_1")?,
+        transition_data[4..8].try_into().context("Failed to parse delta_balance_1")?,
     );
 
-    let initial_balance_0 = initial_state
-        .balances
-        .get(0)
-        .copied()
-        .ok_or_else(|| anyhow!("Missing balance 0"))? as i64;
+    let initial_balance_0 =
+        initial_state.balances.get(0).copied().ok_or_else(|| anyhow!("Missing balance 0"))? as i64;
 
-    let initial_balance_1 = initial_state
-        .balances
-        .get(1)
-        .copied()
-        .ok_or_else(|| anyhow!("Missing balance 1"))? as i64;
+    let initial_balance_1 =
+        initial_state.balances.get(1).copied().ok_or_else(|| anyhow!("Missing balance 1"))? as i64;
 
     let new_balance_0 = initial_balance_0
         .checked_add(delta_balance_0 as i64)
@@ -261,19 +231,12 @@ pub fn apply_transition(
     }
 
     // Increment nonce strictly by +1
-    let new_nonce = initial_state
-        .nonce
-        .checked_add(1)
-        .ok_or_else(|| anyhow!("Nonce overflow"))?;
+    let new_nonce = initial_state.nonce.checked_add(1).ok_or_else(|| anyhow!("Nonce overflow"))?;
 
     let mut new_state = ChannelState {
         balances: [
-            new_balance_0
-                .try_into()
-                .context("Failed to convert balance 0")?,
-            new_balance_1
-                .try_into()
-                .context("Failed to convert balance 1")?,
+            new_balance_0.try_into().context("Failed to convert balance 0")?,
+            new_balance_1.try_into().context("Failed to convert balance 1")?,
         ],
         nonce: new_nonce,
         metadata: initial_state.metadata.clone(),

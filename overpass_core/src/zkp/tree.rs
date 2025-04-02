@@ -11,10 +11,10 @@
 //! *TODO:* We may introduce domain separation (e.g. prefixing leaves with `0x00` and internal nodes with
 //! `0x01`) to eliminate any theoretical ambiguities. Please see section X in the Developer Documentation for more details.
 
+use thiserror::Error;
+
 use crate::zkp::helpers::commitments::Bytes32;
 use crate::zkp::helpers::merkle::hash_pair;
-
-use thiserror::Error;
 
 /// Represents errors that can occur in the Merkle Tree operations.
 #[derive(Debug, Error)]
@@ -57,9 +57,7 @@ impl MerkleTree {
             self.leaves[pos] = new_leaf;
             self.update_tree_on_update(pos)
         } else {
-            Err(MerkleTreeError::InvalidInput(
-                "Old leaf not found".to_string(),
-            ))
+            Err(MerkleTreeError::InvalidInput("Old leaf not found".to_string()))
         }
     }
 
@@ -69,9 +67,7 @@ impl MerkleTree {
             self.leaves.remove(pos);
             self.update_tree_on_delete(pos)
         } else {
-            Err(MerkleTreeError::InvalidInput(
-                "Leaf to delete not found".to_string(),
-            ))
+            Err(MerkleTreeError::InvalidInput("Leaf to delete not found".to_string()))
         }
     }
 
@@ -89,10 +85,8 @@ impl MerkleTree {
             if current_level.len() % 2 != 0 {
                 current_level.push(*current_level.last().unwrap());
             }
-            current_level = current_level
-                .chunks(2)
-                .map(|pair| hash_pair(pair[0], pair[1]))
-                .collect();
+            current_level =
+                current_level.chunks(2).map(|pair| hash_pair(pair[0], pair[1])).collect();
             self.tree.push(current_level.clone());
         }
         self.root = current_level[0];
@@ -157,11 +151,7 @@ impl MerkleTree {
 
         for level in 0..self.tree.len() - 1 {
             let current_level = &self.tree[level];
-            let sibling_pos = if current_pos % 2 == 0 {
-                current_pos + 1
-            } else {
-                current_pos - 1
-            };
+            let sibling_pos = if current_pos % 2 == 0 { current_pos + 1 } else { current_pos - 1 };
             let parent_pos = current_pos / 2;
 
             let hash = if sibling_pos < current_level.len() {
@@ -263,9 +253,7 @@ impl MerkleTree {
 }
 
 impl Default for MerkleTree {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 /// Represents a Merkle proof.
@@ -276,9 +264,10 @@ pub struct MerkleProof {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
+
     use super::*;
     use crate::zkp::helpers::merkle::hash_pair;
-    use anyhow::Result;
 
     #[test]
     fn test_new_merkle_tree() {

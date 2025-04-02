@@ -1,28 +1,23 @@
 //overpass_core/src/bitcoin/wallet.rs
 
-use crate::bitcoin::bitcoin_types::StealthAddress;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use bip39::{Language, Mnemonic};
-use bitcoin::sighash::{Prevouts, SighashCache, TapSighashType};
-use bitcoin::TxOut;
-use bitcoin::{
-    Network, Script, Transaction,
-};
-use bitcoin::secp256k1::{PublicKey, Secp256k1, Keypair, Message, SecretKey};
 use bitcoin::bip32::{Xpriv, Xpub};
-
-
+use bitcoin::secp256k1::{Keypair, Message, PublicKey, Secp256k1, SecretKey};
+use bitcoin::sighash::{Prevouts, SighashCache, TapSighashType};
+use bitcoin::{Network, Script, Transaction, TxOut};
 // use secp256k1::{};
-
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
 use rand::rngs::OsRng;
-use rand::Rng;
-use rand::RngCore;
+use rand::{Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::bitcoin::bitcoin_types::StealthAddress;
 
 /// Errors related to wallet and key management
 #[derive(Error, Debug)]
@@ -232,9 +227,7 @@ impl Wallet {
         let message = Message::from_digest_slice(sighash.as_ref())?;
         let signature = secp.sign_schnorr_no_aux_rand(&message, &keypair);
 
-        transaction.input[input_index]
-            .witness
-            .push(signature.as_ref().to_vec());
+        transaction.input[input_index].witness.push(signature.as_ref().to_vec());
         Ok(())
     }
 }

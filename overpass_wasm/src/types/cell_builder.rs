@@ -1,8 +1,9 @@
 // src/types/cell_builder.rs
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -87,12 +88,7 @@ pub struct CellBuilder {
 
 impl CellBuilder {
     /// Creates a new `CellBuilder`.
-    pub fn new() -> Self {
-        Self {
-            cells: HashMap::new(),
-            size: 0,
-        }
-    }
+    pub fn new() -> Self { Self { cells: HashMap::new(), size: 0 } }
 
     /// Adds a cell to the builder.
     pub fn add_cell(&mut self, cell: Cell) -> Result<(), CellBuilderError> {
@@ -114,32 +110,24 @@ impl CellBuilder {
     }
 
     /// Gets a reference to a cell if it exists.
-    pub fn get_cell(&self, id: u64) -> Option<Arc<RwLock<Cell>>> {
-        self.cells.get(&id).cloned()
-    }
+    pub fn get_cell(&self, id: u64) -> Option<Arc<RwLock<Cell>>> { self.cells.get(&id).cloned() }
 
     /// Builds the cells from the builder.
     pub fn build_cells(&self) -> Result<Vec<Cell>, CellBuilderError> {
         let mut cells = Vec::new();
         for (id, cell_lock) in &self.cells {
-            let cell = cell_lock
-                .read()
-                .map_err(|e| CellBuilderError::LockError(e.to_string()))?
-                .clone();
+            let cell =
+                cell_lock.read().map_err(|e| CellBuilderError::LockError(e.to_string()))?.clone();
             cells.push(cell);
         }
         Ok(cells)
     }
 
     /// Returns the total size of all cells.
-    pub fn total_size(&self) -> u64 {
-        self.size
-    }
+    pub fn total_size(&self) -> u64 { self.size }
 
     /// Returns the number of cells.
-    pub fn cell_count(&self) -> usize {
-        self.cells.len()
-    }
+    pub fn cell_count(&self) -> usize { self.cells.len() }
 
     /// Clears all cells.
     pub fn clear(&mut self) {
@@ -149,9 +137,7 @@ impl CellBuilder {
 }
 
 impl Default for CellBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[cfg(test)]
@@ -162,9 +148,7 @@ mod tests {
     fn test_cell_builder() {
         let mut builder = CellBuilder::new();
 
-        let cell1 = Cell::new(1, vec![1, 2, 3])
-            .with_balance(100)
-            .with_references(vec![2, 3]);
+        let cell1 = Cell::new(1, vec![1, 2, 3]).with_balance(100).with_references(vec![2, 3]);
 
         let cell2 = Cell::new(2, vec![4, 5, 6]).with_balance(200);
 
@@ -186,9 +170,6 @@ mod tests {
         let cell = Cell::new(1, vec![1, 2, 3]);
 
         assert!(builder.add_cell(cell.clone()).is_ok());
-        assert!(matches!(
-            builder.add_cell(cell),
-            Err(CellBuilderError::CellExists)
-        ));
+        assert!(matches!(builder.add_cell(cell), Err(CellBuilderError::CellExists)));
     }
 }

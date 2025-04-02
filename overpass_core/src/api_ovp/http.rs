@@ -55,12 +55,11 @@ struct OtherChannelState {
 
 /// A module for handling HTTP requests.
 pub mod http {
-    use axum::{
-        body::{Body, Bytes},
-        http::{HeaderName, HeaderValue, Response, StatusCode},
-        response::IntoResponse,
-    };
     use std::collections::HashMap;
+
+    use axum::body::{Body, Bytes};
+    use axum::http::{HeaderName, HeaderValue, Response, StatusCode};
+    use axum::response::IntoResponse;
 
     /// A struct representing an HTTP response with a status code, headers, and a body.
     #[derive(Debug, Clone, PartialEq)]
@@ -73,20 +72,12 @@ pub mod http {
     impl HttpResponse {
         /// Creates a new `HttpResponse` with the given status code, headers, and body.
         pub fn new(status_code: StatusCode, headers: HashMap<String, String>, body: Bytes) -> Self {
-            Self {
-                status_code,
-                headers,
-                body,
-            }
+            Self { status_code, headers, body }
         }
 
         // Creates a new `HttpResponse` with the given status code, headers, and body.
         pub fn ok(body: Bytes) -> Self {
-            Self {
-                status_code: StatusCode::OK,
-                headers: HashMap::new(),
-                body,
-            }
+            Self { status_code: StatusCode::OK, headers: HashMap::new(), body }
         }
     }
 

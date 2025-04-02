@@ -1,10 +1,12 @@
 // src/common/types/dag_boc.rs
 
-use crate::error::client_errors::{SystemError, SystemErrorType};
-use crate::types::ops::OpCode;
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+
+use crate::error::client_errors::{SystemError, SystemErrorType};
+use crate::types::ops::OpCode;
 
 /// DAG Cell
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -35,9 +37,7 @@ impl DAGBOC {
         }
     }
     /// Get State
-    pub fn get_state_cells(&self) -> Vec<Vec<u8>> {
-        self.dag_cells.clone()
-    }
+    pub fn get_state_cells(&self) -> Vec<Vec<u8>> { self.dag_cells.clone() }
     /// Adds a cell to the DAG BOC.
     pub fn add_cell(&mut self, cell_data: Vec<u8>) -> Result<u32, SystemError> {
         let id = self.dag_cells.len() as u32;
@@ -57,13 +57,7 @@ impl DAGBOC {
             OpCode::Add { cell } => {
                 self.add_cell(cell)?;
             }
-            OpCode::SetCode {
-                code,
-                new_code,
-                new_data: _,
-                new_libraries: _,
-                new_version: _,
-            } => {
+            OpCode::SetCode { code, new_code, new_data: _, new_libraries: _, new_version: _ } =>
                 if let Some(index) = self.dag_cells.iter().position(|c| c == &code) {
                     self.dag_cells[index] = new_code;
                 } else {
@@ -71,8 +65,7 @@ impl DAGBOC {
                         SystemErrorType::InvalidInput,
                         "Code not found".to_string(),
                     ));
-                }
-            }
+                },
             OpCode::SetData { cell, new_data } => {
                 if let Some(index) = self.dag_cells.iter().position(|c| c == &cell) {
                     self.dag_cells[index] = new_data;
@@ -86,7 +79,7 @@ impl DAGBOC {
             OpCode::AddReference { from, to } => {
                 self.references.push((from, to));
             }
-            OpCode::SetRoot { index } => {
+            OpCode::SetRoot { index } =>
                 if let Some(cell) = self.dag_cells.get(index as usize) {
                     self.roots.push(cell.clone());
                 } else {
@@ -94,8 +87,7 @@ impl DAGBOC {
                         SystemErrorType::InvalidInput,
                         "Index out of bounds".to_string(),
                     ));
-                }
-            }
+                },
             OpCode::Remove { cell } => {
                 if let Some(index) = self.dag_cells.iter().position(|c| c == &cell) {
                     self.dag_cells.remove(index);
@@ -107,10 +99,7 @@ impl DAGBOC {
                 }
             }
             OpCode::RemoveReference { from, to } => {
-                if let Some(index) = self
-                    .references
-                    .iter()
-                    .position(|&(f, t)| f == from && t == to)
+                if let Some(index) = self.references.iter().position(|&(f, t)| f == from && t == to)
                 {
                     self.references.remove(index);
                 } else {

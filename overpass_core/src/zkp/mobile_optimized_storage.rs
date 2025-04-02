@@ -1,4 +1,11 @@
 // src/zkp/mobile_optimized_storage.rs
+use std::collections::HashMap;
+use std::fmt;
+use std::num::NonZero;
+
+use lru::LruCache;
+use sha2::{Digest, Sha256};
+
 use crate::zkp::channel::ChannelState;
 /// Local Storage Layer (Level 3)
 /// Hybrid hot/cold storage optimized for mobile devices.
@@ -6,12 +13,6 @@ use crate::zkp::compressed_transaction::CompressedTransaction;
 use crate::zkp::helpers::commitments::Bytes32;
 use crate::zkp::helpers::merkle::hash_pair;
 use crate::zkp::state_proof::StateProof;
-use lru::LruCache;
-use std::fmt;
-use std::num::NonZero;
-
-use sha2::{Digest, Sha256};
-use std::collections::HashMap;
 
 /// Represents errors in storage operations.
 #[derive(Debug)]
@@ -91,15 +92,11 @@ impl MobileOptimizedStorage {
                 self.compress_transactions(channel_id)?;
             }
         } else {
-            self.recent_transactions
-                .put(channel_id, vec![compressed_tx.clone()]);
+            self.recent_transactions.put(channel_id, vec![compressed_tx.clone()]);
         }
 
         // Add to transaction history
-        self.transaction_history
-            .entry(channel_id)
-            .or_default()
-            .push(compressed_tx);
+        self.transaction_history.entry(channel_id).or_default().push(compressed_tx);
 
         Ok(())
     }
@@ -118,10 +115,7 @@ impl MobileOptimizedStorage {
                 merkle_root: compute_merkle_root(&self.transaction_history, &channel_id),
             };
             // Add to history
-            self.transaction_history
-                .entry(channel_id)
-                .or_default()
-                .push(compressed);
+            self.transaction_history.entry(channel_id).or_default().push(compressed);
         }
         Ok(())
     }
@@ -165,10 +159,7 @@ fn compute_merkle_root_helper(leaves: Vec<[u8; 32]>) -> [u8; 32] {
         if current_level.len() % 2 != 0 {
             current_level.push(*current_level.last().unwrap());
         }
-        current_level = current_level
-            .chunks(2)
-            .map(|pair| hash_pair(pair[0], pair[1]))
-            .collect();
+        current_level = current_level.chunks(2).map(|pair| hash_pair(pair[0], pair[1])).collect();
     }
     current_level[0]
 }
@@ -198,10 +189,7 @@ mod tests {
         let storage = MobileOptimizedStorage::new(100, 30 * 24 * 3600);
 
         // Verify that all internal collections are empty.
-        assert!(
-            storage.is_empty(),
-            "Storage should be empty after initialization"
-        );
+        assert!(storage.is_empty(), "Storage should be empty after initialization");
     }
 
     #[test]

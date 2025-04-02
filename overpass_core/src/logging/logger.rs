@@ -10,18 +10,11 @@ pub trait Logger {
 pub struct CustomLogger;
 
 impl log::Log for CustomLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= log::max_level()
-    }
+    fn enabled(&self, metadata: &Metadata) -> bool { metadata.level() <= log::max_level() }
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            println!(
-                "[{}] {}: {}",
-                record.level(),
-                record.target(),
-                record.args()
-            );
+            println!("[{}] {}: {}", record.level(), record.target(), record.args());
         }
     }
 
@@ -61,9 +54,11 @@ pub fn init_logger(level_filter: LevelFilter) -> Result<(), SetLoggerError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use log::LevelFilter;
     use std::sync::Once;
+
+    use log::LevelFilter;
+
+    use super::*;
 
     static TEST_INIT: Once = Once::new();
 
@@ -98,11 +93,12 @@ mod tests {
     }
 }
 
-use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+
+use chrono::Local;
 
 pub trait LogConfig {
     fn log_file(&self) -> &str;
@@ -114,9 +110,7 @@ pub struct FileLogger {
 
 impl FileLogger {
     pub fn new(config: impl LogConfig + 'static) -> Self {
-        Self {
-            config: Arc::new(Mutex::new(Box::new(config))),
-        }
+        Self { config: Arc::new(Mutex::new(Box::new(config))) }
     }
 
     /// Logs a message with a specified log level.
@@ -132,10 +126,7 @@ impl FileLogger {
 
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
         let log_entry = format!("[{}][{}] {}\n", timestamp, level.to_uppercase(), message);
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file)?;
+        let mut file = OpenOptions::new().create(true).append(true).open(log_file)?;
         file.write_all(log_entry.as_bytes())
     }
 

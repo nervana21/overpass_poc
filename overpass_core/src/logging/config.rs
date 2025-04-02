@@ -15,10 +15,7 @@ pub struct Config {
 impl Config {
     /// Creates a new `Config` with default values.
     pub fn new() -> Self {
-        Self {
-            log_level: "info".to_string(),
-            log_file: "./log/log.txt".to_string(),
-        }
+        Self { log_level: "info".to_string(), log_file: "./log/log.txt".to_string() }
     }
 
     /// Loads the configuration from `config.toml`. If the file doesn't exist,
@@ -50,24 +47,16 @@ impl Config {
     }
 
     /// Sets the log level.
-    pub fn set_log_level(&mut self, log_level: &str) {
-        self.log_level = log_level.to_string();
-    }
+    pub fn set_log_level(&mut self, log_level: &str) { self.log_level = log_level.to_string(); }
 
     /// Sets the log file path.
-    pub fn set_log_file(&mut self, log_file: &str) {
-        self.log_file = log_file.to_string();
-    }
+    pub fn set_log_file(&mut self, log_file: &str) { self.log_file = log_file.to_string(); }
 
     /// Gets the current log level.
-    pub fn get_log_level(&self) -> &str {
-        &self.log_level
-    }
+    pub fn get_log_level(&self) -> &str { &self.log_level }
 
     /// Gets the current log file path.
-    pub fn get_log_file(&self) -> &str {
-        &self.log_file
-    }
+    pub fn get_log_file(&self) -> &str { &self.log_file }
 }
 
 /// A thread-safe logger implementation.
@@ -76,11 +65,7 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new(config: Config) -> Self {
-        Self {
-            config: Arc::new(Mutex::new(config)),
-        }
-    }
+    pub fn new(config: Config) -> Self { Self { config: Arc::new(Mutex::new(config)) } }
 
     /// Logs a message with a specified log level.
     pub fn log(&self, level: &str, message: &str) {
@@ -91,16 +76,11 @@ impl Logger {
         }
 
         let log_entry = format!("[{}] {}\n", level.to_uppercase(), message);
-        match fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file)
-        {
-            Ok(mut file) => {
+        match fs::OpenOptions::new().create(true).append(true).open(log_file) {
+            Ok(mut file) =>
                 if let Err(e) = file.write_all(log_entry.as_bytes()) {
                     eprintln!("Failed to write to log file: {}", e);
-                }
-            }
+                },
             Err(e) => eprintln!("Failed to open log file: {}", e),
         }
     }
