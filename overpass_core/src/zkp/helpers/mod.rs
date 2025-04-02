@@ -7,6 +7,7 @@ pub mod state;
 pub mod transactions;
 
 // Commonly used re-exports
+pub use bitcoind_path::require_bitcoind_path;
 pub use merkle::compute_channel_root;
 pub use state::hash_state;
 pub use transactions::{

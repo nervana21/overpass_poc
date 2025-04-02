@@ -7,6 +7,7 @@ use miniscript::bitcoin::Transaction;
 use overpass_core::zkp::channel::ChannelState;
 use overpass_core::zkp::helpers::{
     build_p2tr_transaction, compute_channel_root, hash_state, initialize_funded_node,
+    require_bitcoind_path,
 };
 use overpass_core::zkp::state_transition::apply_transition;
 use overpass_core::zkp::tree::MerkleTree;
@@ -14,7 +15,9 @@ use overpass_core::zkp::tree::MerkleTree;
 #[test]
 fn test_e2e_pt2r() -> anyhow::Result<()> {
     println!("\n=== Starting E2E P2TR Test ===");
-    let (node, address) = initialize_funded_node("/Users/bitnode/bitcoin/build/src/bitcoind")?;
+    let bitcoind_path = require_bitcoind_path().map_err(anyhow::Error::msg)?;
+
+    let (node, address) = initialize_funded_node(&bitcoind_path)?;
 
     let balance = node.client.get_balance()?.balance()?.to_sat();
     println!("Wallet balance: {}", balance);

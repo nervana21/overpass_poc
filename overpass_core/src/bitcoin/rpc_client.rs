@@ -183,11 +183,13 @@ impl BitcoinRpcClient {
 mod tests {
     use anyhow::{Ok, Result};
 
-    use crate::zkp::helpers::initialize_funded_node;
+    use crate::zkp::helpers::{initialize_funded_node, require_bitcoind_path};
 
     #[tokio::test]
     async fn test_get_block_count() -> Result<()> {
-        let (node, _) = initialize_funded_node("/Users/bitnode/bitcoin/build/src/bitcoind")?;
+        let bitcoind_path = require_bitcoind_path().map_err(anyhow::Error::msg)?;
+
+        let (node, _) = initialize_funded_node(&bitcoind_path)?;
         let block_count = node.client.get_block_count()?.0;
         assert!(block_count > 0, "Block count should be positive");
         Ok(())

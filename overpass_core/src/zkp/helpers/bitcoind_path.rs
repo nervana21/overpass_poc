@@ -1,26 +1,16 @@
-// src/zkp/bitcoind_path.rs
+// overpass_core/src/zkp/helpers/bitcoind_path.rs
 
-use std::process::Command;
+use std::env;
 
-/// Returns a usable path to `bitcoind`, either from the `BITCOIND_PATH` env variable or by calling `which bitcoind`.
-pub fn resolve_bitcoind_path() -> anyhow::Result<String> {
-    if let Ok(path) = std::env::var("BITCOIND_PATH") {
-        return Ok(path);
-    }
+/// Returns the BITCOIND_PATH environment variable or an error with helpful context.
+/// Uses BITCOIND_VERSION_ALIAS if available to include a suggested startup command.
+pub fn require_bitcoind_path() -> Result<String, String> {
+    let alias = env::var("BITCOIND_VERSION_ALIAS").unwrap_or_else(|_| "<VERSION_ALIAS>".into());
 
-    #[cfg(unix)]
-    {
-        if let Ok(output) = Command::new("which").arg("bitcoind").output() {
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path.is_empty() {
-                    return Ok(path);
-                }
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!(
-        "`bitcoind` not found. Please set BITCOIND_PATH or install it and ensure it's in your PATH."
-    ))
+    env::var("BITCOIND_PATH").map_err(|_| {
+        format!(
+            "BITCOIND_PATH environment variable must be set.\nHint: run ./run-bitcoind.sh start {} to start the node and see the export command.",
+            alias
+        )
+    })
 }

@@ -10,3 +10,4 @@ Cargo.lock
 overpass_core/log/*.txt
 **/.DS_Store
 .cursorrules
+bitcoind_versions.conf
