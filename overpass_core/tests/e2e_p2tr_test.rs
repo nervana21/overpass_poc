@@ -1,8 +1,6 @@
 // overpass_core/tests/e2e_integration_test.rs
 
 use anyhow::{anyhow, Ok};
-use bitcoin_rpc_codegen::Client;
-use bitcoincore_rpc::RpcApi;
 use miniscript::bitcoin::consensus::deserialize;
 use miniscript::bitcoin::consensus::encode::serialize_hex;
 use miniscript::bitcoin::Transaction;
@@ -13,27 +11,6 @@ use overpass_core::zkp::helpers::{
 };
 use overpass_core::zkp::state_transition::apply_transition;
 use overpass_core::zkp::tree::MerkleTree;
-
-#[test]
-fn simple_p2tr_test() -> anyhow::Result<()> {
-    let client = Client::new_auto("http://127.0.0.1:18443", "rpcuser", "rpcpassword")?;
-
-    // Now call any RPC method directly:
-    let height = client.get_block_count()?;
-    println!("Regtest block height: {}", height);
-
-    let info = client.get_blockchain_info()?;
-    println!("Chain info: {:?}", info);
-
-    let block_hash = client.get_block_hash(height)?;
-    println!("Block hash: {}", block_hash);
-
-    let block = client.get_block(&block_hash)?;
-    println!("Block: {:?}", block);
-
-    // Ok(())
-    Ok(())
-}
 
 #[test]
 fn test_e2e_pt2r() -> anyhow::Result<()> {
