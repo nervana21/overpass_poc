@@ -1,9 +1,14 @@
 // src/zkp/transactions.rs
 
+use std::str::FromStr;
+
 use anyhow::{anyhow, Result};
+use bitcoin_rpc_codegen::{Client, RpcApi};
+use bitcoincore_rpc::json::AddressType as RpcAddressType;
 use corepc_node::tempfile::tempdir;
 use corepc_node::{Conf, Node};
 use miniscript::bitcoin::absolute::LockTime;
+use miniscript::bitcoin::address::NetworkUnchecked;
 use miniscript::bitcoin::opcodes::all::OP_RETURN;
 use miniscript::bitcoin::script::Builder;
 use miniscript::bitcoin::transaction::{Transaction, TxIn, TxOut, Version};
@@ -117,6 +122,76 @@ pub fn build_p2tr_transaction(node: &Node, funding_address: &Address) -> Result<
         }],
         output: outputs,
     })
+}
+
+/// Build a simple Taproot OP_RETURN transaction:
+/// - single UTXO input from `funding_address`
+/// - one zero‑value OP_RETURN output carrying `data`
+/// - one Taproot change output (all sats minus fee)
+pub fn build_codegen_transaction(
+    client: &Client,
+    funding_address: &str,
+    data: [u8; 32],
+) -> Result<Transaction> {
+    // Parse the funding address string once
+    let target_address = Address::<NetworkUnchecked>::from_str(funding_address)?;
+
+    // pull all utxos using the snake_case method
+    let utxos = client.list_unspent(None, None, None, None, None)?;
+
+    const FEE: u64 = 1_000;
+
+    let mut chosen = None;
+    for u in utxos {
+        // Compare addresses directly (Option<Address<NetworkUnchecked>>)
+        if u.address == Some(target_address.clone()) {
+            let sats = u.amount.to_sat(); // Assuming amount is of type Amount
+            if sats >= FEE {
+                chosen = Some((u.clone(), sats));
+                break;
+            }
+        }
+    }
+    let (utxo, input_value) = chosen
+        .ok_or_else(|| anyhow!("No UTXO at {} with at least {} sats", funding_address, FEE,))?;
+
+    // parse txid & vout directly from the struct fields
+    let txid = utxo.txid; // Assuming field exists
+    let vout = utxo.vout; // Assuming field exists
+
+    // build OP_RETURN output
+    let op_return_script = Builder::new()
+        .push_opcode(miniscript::bitcoin::blockdata::opcodes::all::OP_RETURN)
+        .push_slice(data)
+        .into_script();
+    let op_return_output = TxOut { value: Amount::from_sat(0), script_pubkey: op_return_script };
+
+    // compute change
+    let change_value = input_value
+        .checked_sub(FEE)
+        .ok_or_else(|| anyhow!("Insufficient funds: have {}, need {} sats", input_value, FEE))?;
+
+    // fresh Taproot change address using the snake_case method
+    let change_addr_unchecked = client.get_new_address(None, Some(RpcAddressType::Bech32m))?;
+    let change_addr = change_addr_unchecked.assume_checked();
+
+    let change_output =
+        TxOut { value: Amount::from_sat(change_value), script_pubkey: change_addr.script_pubkey() };
+
+    // assemble transaction
+    let tx = Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint::new(txid, vout),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::default(),
+        }],
+        output: vec![op_return_output, change_output],
+    };
+
+    Ok(tx)
 }
 
 pub fn initialize_funded_node(bitcoind_path: &str) -> Result<(Node, Address)> {

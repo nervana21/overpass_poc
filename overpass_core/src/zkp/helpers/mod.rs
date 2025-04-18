@@ -11,5 +11,6 @@ pub use bitcoind_path::require_bitcoind_path;
 pub use merkle::compute_channel_root;
 pub use state::hash_state;
 pub use transactions::{
-    build_op_return_transaction, build_p2tr_transaction, initialize_funded_node,
+    build_codegen_transaction, build_op_return_transaction, build_p2tr_transaction,
+    initialize_funded_node,
 };
