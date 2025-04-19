@@ -10,9 +10,6 @@ use overpass_core::zkp::tree::MerkleTree;
 use serde_json::json;
 
 /// Replace these with your actual URL/creds when running locally
-const RPC_URL: &str = "http://127.0.0.1:18443";
-const RPC_USER: &str = "rpcuser";
-const RPC_PASS: &str = "rpcpassword";
 const WALLET: &str = "test";
 
 #[test]
@@ -20,7 +17,7 @@ fn e2e_codegen_test() -> Result<()> {
     println!("\n=== Starting E2E Codegen Test ===");
 
     // Spawn bitcoind (if needed), wait for RPC, and load/create wallet
-    let rt = RegtestClient::new_auto(RPC_URL, RPC_USER, RPC_PASS, WALLET)?;
+    let rt = RegtestClient::new_auto(WALLET)?;
     let client = &rt.client;
 
     let blockchain_info = client.get_blockchain_info()?;
