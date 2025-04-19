@@ -1,15 +1,7 @@
-// overpass_core/tests/e2e_codegen.rs
-
-use std::fs;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread::sleep;
-use std::time::{Duration, Instant};
+// overpass_core/tests/e2e_regtest_client.rs
 
 use anyhow::{anyhow, Result};
-use bitcoin_rpc_codegen::{Client, RpcApi};
+use bitcoin_rpc_codegen::{RegtestClient, RpcApi};
 use miniscript::bitcoin::{Amount, Network};
 use overpass_core::zkp::channel::ChannelState;
 use overpass_core::zkp::helpers::{build_codegen_transaction, compute_channel_root, hash_state};
@@ -17,77 +9,27 @@ use overpass_core::zkp::state_transition::apply_transition;
 use overpass_core::zkp::tree::MerkleTree;
 use serde_json::json;
 
-static WALLET_COUNTER: AtomicUsize = AtomicUsize::new(0);
+/// Replace these with your actual URL/creds when running locally
+const RPC_URL: &str = "http://127.0.0.1:18443";
+const RPC_USER: &str = "rpcuser";
+const RPC_PASS: &str = "rpcpassword";
+const WALLET: &str = "test";
 
 #[test]
 fn e2e_codegen_test() -> Result<()> {
-    // pick a free RPC port and start bitcoind
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    let rpc_port = listener.local_addr()?.port();
-    drop(listener);
-
-    let rpc_user = "rpcuser";
-    let rpc_pass = "rpcpassword";
-    let base_rpc_url = format!("http://127.0.0.1:{}", rpc_port);
-
-    let datadir = PathBuf::from("target/bitcoind-test");
-    let _ = fs::remove_dir_all(&datadir);
-    fs::create_dir_all(&datadir)?;
-
-    let mut child: Child = Command::new("bitcoind")
-        .arg("-regtest")
-        .arg(format!("-datadir={}", datadir.display()))
-        .arg(format!("-rpcuser={}", rpc_user))
-        .arg(format!("-rpcpassword={}", rpc_pass))
-        .arg(format!("-rpcport={}", rpc_port))
-        .arg("-listen=0")
-        .arg("-fallbackfee=0.0002")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
-
-    let start = Instant::now();
-    loop {
-        if start.elapsed() > Duration::from_secs(15) {
-            return Err(anyhow!("bitcoind RPC never came up"));
-        }
-        if let Ok(c) = Client::new_auto(&base_rpc_url, rpc_user, rpc_pass) {
-            if c.get_network_info().is_ok() {
-                break;
-            }
-        }
-        sleep(Duration::from_millis(200));
-    }
-
-    // test begins
     println!("\n=== Starting E2E Codegen Test ===");
 
-    let node_client = Client::new_auto(&base_rpc_url, rpc_user, rpc_pass)?;
-    let suffix = WALLET_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let wallet_name = format!("test_wallet_e2e_{}", suffix);
+    // Spawn bitcoind (if needed), wait for RPC, and load/create wallet
+    let rt = RegtestClient::new_auto(RPC_URL, RPC_USER, RPC_PASS, WALLET)?;
+    let client = &rt.client;
 
-    // create a fresh wallet
-    let wallet_dir = datadir.join("regtest").join("wallets").join(&wallet_name);
-    if wallet_dir.exists() {
-        fs::remove_dir_all(&wallet_dir)?;
-    }
-    node_client.create_wallet(&wallet_name, None, None, None, None)?;
+    let blockchain_info = client.get_blockchain_info()?;
+    assert_eq!(blockchain_info.chain, Network::Regtest);
 
-    let wallet_rpc_url = format!("{}/wallet/{}", base_rpc_url, wallet_name);
-    let client = Client::new_auto(&wallet_rpc_url, rpc_user, rpc_pass)?;
-
-    let network_info = client.get_network_info()?;
-    let network = if network_info.network_active {
-        client.get_blockchain_info()?.chain
-    } else {
-        Network::Regtest
-    };
-
-    // mine 110 blocks, check balance
-    let addr = client.get_new_address(None, None)?.require_network(network)?;
-    let addr_str = addr.to_string();
-    client.generate_to_address(101, &addr)?;
-    println!("Generated 101 blocks to {}", addr_str);
+    let fund_addr = client.get_new_address(None, None)?.require_network(Network::Regtest)?;
+    let fund_addr_str = fund_addr.to_string();
+    client.generate_to_address(101, &fund_addr)?;
+    println!("Generated 101 blocks to {}", fund_addr_str);
 
     let balance_sats = client.get_balance(None, None)?.to_sat();
     println!("Wallet balance: {}", balance_sats);
@@ -95,7 +37,7 @@ fn e2e_codegen_test() -> Result<()> {
 
     // fund a fresh address with 5000 sats and confirm
     client.call_json("settxfee", &[json!(0.00001)])?;
-    let fund_addr = client.get_new_address(None, None)?.require_network(network)?;
+    let fund_addr = client.get_new_address(None, None)?.require_network(Network::Regtest)?;
     let fund_addr_str = fund_addr.to_string();
     client.send_to_address(
         &fund_addr,
@@ -107,8 +49,11 @@ fn e2e_codegen_test() -> Result<()> {
         None,
         None,
     )?;
-    client.generate_to_address(1, &addr)?;
-    // println!("Sent 5000 sats to {} and mined 1 block", fund_addr_str);
+    client.generate_to_address(1, &fund_addr)?;
+    println!("Sent 5000 sats to {} and mined 1 block", fund_addr_str);
+
+    let utxos = client.list_unspent(Some(1), None, Some(&[&fund_addr]), None, None)?;
+    assert!(!utxos.is_empty(), "No UTXO at funding address");
 
     let utxos = client.list_unspent(Some(1), None, Some(&[&fund_addr]), None, None)?;
     assert!(!utxos.is_empty(), "No UTXO at funding address");
@@ -168,13 +113,9 @@ fn e2e_codegen_test() -> Result<()> {
     let txid = client.send_raw_transaction(&signed.hex)?;
     println!("Broadcasted transaction: {}", txid);
 
-    client.generate_to_address(1, &addr)?;
+    client.generate_to_address(1, &fund_addr)?;
     println!("Block generated to confirm transaction");
 
-    // tear down
-    let _ = node_client.stop();
-    let _ = child.wait();
-
-    println!("\n=== Test Completed Successfully ===");
+    println!("\n=== E2E Codegen Test Completed Successfully ===");
     Ok(())
 }
