@@ -1,7 +1,6 @@
 // overpass_core/tests/e2e_regtest_client.rs
 
 use anyhow::{anyhow, Result};
-use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::Address;
 use bitcoin_rpc_codegen::{RegtestClient, RpcApi};
 use miniscript::bitcoin::{Amount, Network};
@@ -114,10 +113,18 @@ fn e2e_codegen_test() -> Result<()> {
     let signed = client.sign_raw_transaction_with_wallet(&tx, None, None)?;
     println!("Raw P2TR transaction hex: {}", hex::encode(&signed.hex));
     let txid = client.send_raw_transaction(&signed.hex)?;
-    println!("Broadcasted P2TR transaction with txid: {}", txid);
+
+    println!("\nBroadcasted P2TR transaction with txid: {}", txid);
+    let mempool = client.get_raw_mempool()?;
+    assert!(mempool.contains(&txid));
+    println!("Transaction is in mempool");
 
     client.generate_to_address(1, &fund_addr)?;
     println!("Block generated to confirm transaction");
+
+    let mempool = client.get_raw_mempool()?;
+    assert!(!mempool.contains(&txid));
+    println!("Transaction is no longer in mempool");
 
     println!("\n=== E2E Codegen Test Completed Successfully ===");
     Ok(())
