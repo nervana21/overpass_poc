@@ -1,22 +1,46 @@
 // overpass_core/tests/e2e_regtest_client.rs
 
 use anyhow::{anyhow, Result};
+use bitcoin::consensus::encode::serialize_hex;
+use bitcoin::Address;
 use bitcoin_rpc_codegen::{RegtestClient, RpcApi};
 use miniscript::bitcoin::{Amount, Network};
 use overpass_core::zkp::channel::ChannelState;
 use overpass_core::zkp::helpers::{build_codegen_transaction, compute_channel_root, hash_state};
 use overpass_core::zkp::state_transition::apply_transition;
 use overpass_core::zkp::tree::MerkleTree;
-use serde_json::json;
 
-/// Replace these with your actual URL/creds when running locally
 const WALLET: &str = "test";
+
+/// Creates and funds a spendable UTXO of a given amount (in sats).
+/// This helper sets the transaction fee, retrieves a new address,
+/// sends the specified amount to it, and mines one block to confirm the funding.
+fn create_spendable_utxo(rt: &RegtestClient, amount: u64) -> Result<Address> {
+    let client = &rt.client;
+    // Get a fresh address and require it to be on the Regtest network.
+    let fund_addr = client.get_new_address(None, None)?.require_network(Network::Regtest)?;
+    // let fund_addr_str = fund_addr.to_string();
+    // Fund the address with the desired amount.
+    client.send_to_address(
+        &fund_addr,
+        Amount::from_sat(amount),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )?;
+    // Mine one block so that the UTXO becomes spendable.
+    client.generate_to_address(1, &fund_addr)?;
+    println!("Created spendable UTXO of {} sats at {}", amount, fund_addr.to_string());
+    Ok(fund_addr)
+}
 
 #[test]
 fn e2e_codegen_test() -> Result<()> {
     println!("\n=== Starting E2E Codegen Test ===");
 
-    // Spawn bitcoind (if needed), wait for RPC, and load/create wallet
     let rt = RegtestClient::new_auto(WALLET)?;
     let client = &rt.client;
 
@@ -32,30 +56,14 @@ fn e2e_codegen_test() -> Result<()> {
     println!("Wallet balance: {}", balance_sats);
     assert!(balance_sats > 0);
 
-    // fund a fresh address with 5000 sats and confirm
-    client.call_json("settxfee", &[json!(0.00001)])?;
-    let fund_addr = client.get_new_address(None, None)?.require_network(Network::Regtest)?;
-    let fund_addr_str = fund_addr.to_string();
-    client.send_to_address(
-        &fund_addr,
-        Amount::from_sat(5000),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )?;
-    client.generate_to_address(1, &fund_addr)?;
-    println!("Sent 5000 sats to {} and mined 1 block", fund_addr_str);
+    // Create a spendable UTXO of 5000 sats via our helper.
+    let spendable_utxo_addr = create_spendable_utxo(&rt, 5000)?;
 
-    let utxos = client.list_unspent(Some(1), None, Some(&[&fund_addr]), None, None)?;
+    // Verify that the UTXO exists at the funding address.
+    let utxos = client.list_unspent(Some(1), None, Some(&[&spendable_utxo_addr]), None, None)?;
     assert!(!utxos.is_empty(), "No UTXO at funding address");
 
-    let utxos = client.list_unspent(Some(1), None, Some(&[&fund_addr]), None, None)?;
-    assert!(!utxos.is_empty(), "No UTXO at funding address");
-
-    // channel-state, transition, Merkle proof
+    // Channel state, transition, and Merkle proof creation.
     println!("\n=== Creating Channel States ===");
     let mut st0 = ChannelState {
         balances: [balance_sats, 0],
@@ -100,15 +108,13 @@ fn e2e_codegen_test() -> Result<()> {
     assert!(smt.verify_proof(&h1, &proof, &smt.root), "Merkle proof verification failed");
     println!("Merkle proof verified successfully");
 
-    // build, sign & broadcast the P2TR tx
+    // Build, sign, and broadcast the Codegen P2TR transaction.
     println!("\n=== Building and Sending Codegen P2TR Transaction ===");
-    let tx = build_codegen_transaction(&client, &fund_addr_str, data)?;
-
+    let tx = build_codegen_transaction(&client, &spendable_utxo_addr.to_string(), data)?;
     let signed = client.sign_raw_transaction_with_wallet(&tx, None, None)?;
     println!("Raw P2TR transaction hex: {}", hex::encode(&signed.hex));
-
     let txid = client.send_raw_transaction(&signed.hex)?;
-    println!("Broadcasted transaction: {}", txid);
+    println!("Broadcasted P2TR transaction with txid: {}", txid);
 
     client.generate_to_address(1, &fund_addr)?;
     println!("Block generated to confirm transaction");
