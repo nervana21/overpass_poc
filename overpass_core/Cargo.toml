@@ -52,7 +52,7 @@ corepc-node = { git = "https://github.com/rust-bitcoin/corepc", package = "corep
     "28_0",
 ] }
 
-bitcoin-rpc-codegen = { path = "../../bitcoin-rpc-codegen" }
+midas = { path = "../../bitcoin-rpc-codegen/midas" }
 
 bitcoin_hashes = { version = "0.13.0", features = ["serde"] }
 bitcoin = { version = "0.32.5", features = ["rand", "serde"] }
