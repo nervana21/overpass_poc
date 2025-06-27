@@ -1,6 +1,6 @@
 # Overpass Channels Protocol - E2E Integration Test
 
-This repository includes a comprehensive end-to-end (E2E) test to verify the functionality of the Overpass Channels Protocol. The test simulates the creation, management, and verification of channel states, as well as anchoring states to Bitcoin via OP_RETURN transactions.
+This repository includes a comprehensive end-to-end (E2E) test to verify the functionality of the Overpass Channels Protocol. The test simulates the creation, management, and verification of channel states, as well as anchoring states to Bitcoin via OP_RETURN transactions. For a detailed explanation of the protocol, refer to [ the overpass paper](overpass_paper.pdf).
 
 ## Overview
 
