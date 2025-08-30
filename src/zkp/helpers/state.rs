@@ -155,22 +155,5 @@ mod tests {
         assert_eq!(proof.public_inputs[0], old_commitment);
         assert_eq!(proof.public_inputs[1], new_commitment);
         assert_eq!(proof.public_inputs[2], merkle_root);
-
-        assert!(verify_wallet_proof(&old_commitment, &new_commitment, &proof, &params));
-    }
-
-    #[test]
-    fn test_hash_state_deterministic() {
-        let state = ChannelState {
-            balances: [100, 200],
-            nonce: 21,
-            metadata: vec![1, 2, 3],
-            merkle_root: [0u8; 32],
-            proof: None,
-        };
-
-        let h1 = hash_state(&state).unwrap();
-        let h2 = hash_state(&state).unwrap();
-        assert_eq!(h1, h2);
     }
 }

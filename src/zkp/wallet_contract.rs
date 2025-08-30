@@ -6,12 +6,11 @@ use std::fmt;
 use anyhow::Result;
 use serde_json;
 
-use super::state_proof;
 use crate::zkp::channel::ChannelState;
 use crate::zkp::global_root_contract::{GlobalRootContract, GlobalRootContractError};
-use crate::zkp::helpers::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
+use crate::zkp::helpers::commitments::Bytes32;
 use crate::zkp::helpers::merkle::{compute_global_root, compute_global_root_from_sorted};
-use crate::zkp::helpers::state::{generate_state_proof, hash_state};
+use crate::zkp::helpers::state::hash_state;
 use crate::zkp::mobile_optimized_storage::{MobileOptimizedStorage, StorageError};
 use crate::zkp::pedersen_parameters::PedersenParameters;
 
@@ -114,65 +113,6 @@ impl WalletContract {
         Ok(())
     }
 
-    pub fn update_channel_local(
-        &mut self,
-        channel_id: Bytes32,
-        new_balance: [u64; 2],
-        metadata: Vec<u8>,
-    ) -> Result<bool, WalletContractError> {
-        // Retrieve the current channel state.
-        let (_old_channel_merkle_root, old_commitment_hash) = match self.channels.get(&channel_id) {
-            Some(channel) => {
-                let hash = hash_state(channel)
-                    .map_err(|e| WalletContractError::HashError(e.to_string()))?;
-                (channel.merkle_root, hash)
-            }
-            None =>
-                return Err(WalletContractError::GlobalRootError(
-                    GlobalRootContractError::WalletNotFound,
-                )),
-        };
-
-        // Save the old global state (wallet Merkle root) before making any changes.
-        let old_global_root = self.merkle_root;
-
-        // Generate new commitment based on the new balance.
-        let blinding = generate_random_blinding();
-        let new_commitment = pedersen_commit(new_balance.clone(), blinding, &self.params);
-
-        // Update the channel's local state.
-        if let Some(channel) = self.channels.get_mut(&channel_id) {
-            channel.balances = new_balance;
-            channel.nonce += 1;
-            channel.metadata = metadata;
-            channel.merkle_root = new_commitment;
-        }
-
-        // Recompute the wallet's Merkle root after the channel update.
-        self.update_merkle_root()?;
-
-        let helper_proof =
-            generate_state_proof(old_global_root, new_commitment, self.merkle_root, &self.params);
-        let state_proof = state_proof::StateProof {
-            pi: helper_proof.pi,
-            public_inputs: helper_proof.public_inputs,
-            timestamp: helper_proof.timestamp,
-        };
-
-        // Store transaction
-        self.storage
-            .store_transaction(
-                channel_id,
-                old_commitment_hash,
-                new_commitment,
-                state_proof.clone(),
-                serde_json::Value::Null,
-            )
-            .map_err(|e| WalletContractError::StorageError(e.to_string()))?;
-
-        Ok(true)
-    }
-
     /// Gets the current merkle root.
     pub fn get_merkle_root(&self) -> Bytes32 { self.merkle_root }
 
@@ -272,27 +212,6 @@ mod tests {
         // Try registering same channel again
         let result = wallet.register_channel(channel_id, [200, 0], [0u8; 32], vec![4, 5, 6])?;
         assert!(!result);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_update_channel() -> Result<(), WalletContractError> {
-        let mut wallet = setup_test_wallet();
-        let channel_id = [2u8; 32];
-
-        // Register channel
-        wallet.register_channel(channel_id, [100, 0], [0u8; 32], vec![1, 2, 3])?;
-
-        // Update channel
-        let result = wallet.update_channel_local(channel_id, [95, 0], vec![4, 5, 6])?;
-        assert!(result);
-
-        // Verify update
-        let channel = wallet.get_channel(&channel_id).unwrap();
-        assert_eq!(channel.balances, [95, 0]);
-        assert_eq!(channel.metadata, vec![4, 5, 6]);
-        assert_eq!(channel.nonce, 1);
 
         Ok(())
     }
