@@ -13,7 +13,8 @@ async fn test_midas() -> Result<()> {
     println!("\n=== Creating Channel States ===");
     let initial_balance = 100u64;
     let mut initial_state = ChannelState {
-        balances: [initial_balance, 0],
+        sender_balance: initial_balance,
+        receiver_balance: 0,
         nonce: 0,
         metadata: vec![],
         merkle_root: [0u8; 32],
@@ -29,17 +30,12 @@ async fn test_midas() -> Result<()> {
 
     println!("\n=== Generating Transition Data ===");
     let mut transition_data = [0u8; 32];
-    transition_data[0..4].copy_from_slice(&(-3i32).to_le_bytes());
-    transition_data[4..8].copy_from_slice(&3i32.to_le_bytes());
+    transition_data[0..4].copy_from_slice(&(3u32).to_le_bytes());
 
     println!("Transition data: {:?}", transition_data);
     println!(
-        "Delta balance 0: {}",
-        i32::from_le_bytes(transition_data[0..4].try_into().unwrap())
-    );
-    println!(
-        "Delta balance 1: {}",
-        i32::from_le_bytes(transition_data[4..8].try_into().unwrap())
+        "Transfer amount: {}",
+        u32::from_le_bytes(transition_data[0..4].try_into().unwrap())
     );
 
     // Apply transition to get the next state

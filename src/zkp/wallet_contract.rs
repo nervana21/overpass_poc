@@ -141,7 +141,7 @@ impl fmt::Display for WalletContract {
         // Display individual channels
         for (channel_id, state) in &self.channels {
             writeln!(f, "\n  Channel 0x{}:", hex::encode(channel_id))?;
-            writeln!(f, "    Balance: {} units", state.balances[0])?;
+            writeln!(f, "    Balance: {} units", state.sender_balance)?;
             writeln!(f, "    Nonce: {}", state.nonce)?;
             if !state.metadata.is_empty() {
                 writeln!(f, "    Metadata: {} bytes", state.metadata.len())?;

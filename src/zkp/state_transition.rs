@@ -204,40 +204,30 @@ pub fn apply_transition(
     initial_state: &ChannelState,
     transition_data: &[u8; 32],
 ) -> Result<ChannelState> {
-    let delta_balance_0 = i32::from_le_bytes(
-        transition_data[0..4].try_into().context("Failed to parse delta_balance_0")?,
-    );
-    let delta_balance_1 = i32::from_le_bytes(
-        transition_data[4..8].try_into().context("Failed to parse delta_balance_1")?,
-    );
+    let transfer_amount = u32::from_le_bytes(
+        transition_data[0..4]
+            .try_into()
+            .context("Failed to parse transfer_amount")?,
+    ) as u64;
 
-    let initial_balance_0 =
-        initial_state.balances.get(0).copied().ok_or_else(|| anyhow!("Missing balance 0"))? as i64;
+    // Calculate new sender balance (decrease by transfer amount)
+    let new_sender_balance = initial_state
+        .sender_balance
+        .checked_sub(transfer_amount)
+        .ok_or_else(|| anyhow!("Negative balance is not allowed"))?;
 
-    let initial_balance_1 =
-        initial_state.balances.get(1).copied().ok_or_else(|| anyhow!("Missing balance 1"))? as i64;
-
-    let new_balance_0 = initial_balance_0
-        .checked_add(delta_balance_0 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 0"))?;
-
-    let new_balance_1 = initial_balance_1
-        .checked_add(delta_balance_1 as i64)
-        .ok_or_else(|| anyhow!("Balance overflow for balance 1"))?;
-
-    // Ensure non-negative balances
-    if new_balance_0 < 0 || new_balance_1 < 0 {
-        anyhow::bail!("Negative balance is not allowed");
-    }
+    // Calculate new receiver balance (increase by transfer amount)
+    let new_receiver_balance = initial_state
+        .receiver_balance
+        .checked_add(transfer_amount)
+        .ok_or_else(|| anyhow!("Balance overflow for positive delta"))?;
 
     // Increment nonce strictly by +1
     let new_nonce = initial_state.nonce.checked_add(1).ok_or_else(|| anyhow!("Nonce overflow"))?;
 
     let mut new_state = ChannelState {
-        balances: [
-            new_balance_0.try_into().context("Failed to convert balance 0")?,
-            new_balance_1.try_into().context("Failed to convert balance 1")?,
-        ],
+        sender_balance: new_sender_balance,
+        receiver_balance: new_receiver_balance,
         nonce: new_nonce,
         metadata: initial_state.metadata.clone(),
         merkle_root: [0u8; 32],

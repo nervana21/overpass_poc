@@ -181,7 +181,6 @@ mod tests {
     use super::*;
     use crate::zkp::channel::ChannelState;
     use crate::zkp::helpers::commitments::Bytes32;
-    use crate::zkp::pedersen_parameters::PedersenParameters;
 
     #[test]
     fn test_mobile_optimized_storage_is_empty_initially() {
@@ -198,8 +197,7 @@ mod tests {
         let mut storage = MobileOptimizedStorage::new(100, 30 * 24 * 3600);
         let channel_id: Bytes32 = [1u8; 32];
 
-        let params = PedersenParameters::default();
-        let channel_state = ChannelState::new(channel_id, [100, 0], vec![1, 2, 3], &params);
+        let channel_state = ChannelState::new(100);
 
         // Insert the dummy channel state into active_channels.
         storage.active_channels.put(channel_id, channel_state);

@@ -16,9 +16,8 @@ use crate::zkp::pedersen_parameters::PedersenParameters;
 pub fn hash_state(state: &ChannelState) -> anyhow::Result<Bytes32> {
     let mut inputs = Vec::new();
 
-    for &balance in &state.balances {
-        inputs.push(GoldilocksField::from_canonical_u64(balance));
-    }
+    inputs.push(GoldilocksField::from_canonical_u64(state.sender_balance));
+    inputs.push(GoldilocksField::from_canonical_u64(state.receiver_balance));
 
     inputs.push(GoldilocksField::from_canonical_u64(state.nonce));
 
