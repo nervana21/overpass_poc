@@ -72,15 +72,11 @@ impl WalletContract {
     pub fn register_channel(
         &mut self,
         channel_id: Bytes32,
-        balances: [u64; 2],
-        _counterparty: Bytes32,
-        metadata: Vec<u8>,
+        channel: ChannelState,
     ) -> Result<bool, WalletContractError> {
         if self.channels.contains_key(&channel_id) {
             return Ok(false); // Channel already exists
         }
-
-        let channel = ChannelState::new(channel_id, balances, metadata, &self.params);
 
         self.channels.insert(channel_id, channel);
 
@@ -89,6 +85,7 @@ impl WalletContract {
 
         Ok(true)
     }
+    
     /// Updates the Merkle root for the wallet, based on channel states.
     fn update_merkle_root(&mut self) -> Result<(), WalletContractError> {
         // Compute channel hashes and collect them into a vector.
@@ -205,12 +202,12 @@ mod tests {
         let channel_id = [2u8; 32];
 
         // Register new channel
-        let result = wallet.register_channel(channel_id, [100, 0], [0u8; 32], vec![1, 2, 3])?;
+        let result = wallet.register_channel(channel_id, ChannelState::new(100))?;
         assert!(result);
         assert!(wallet.has_channel(&channel_id));
 
         // Try registering same channel again
-        let result = wallet.register_channel(channel_id, [200, 0], [0u8; 32], vec![4, 5, 6])?;
+        let result = wallet.register_channel(channel_id, ChannelState::new(200))?;
         assert!(!result);
 
         Ok(())
@@ -223,7 +220,7 @@ mod tests {
 
         // Register multiple channels
         for &id in &channel_ids {
-            wallet.register_channel(id, [100, 0], [0u8; 32], vec![1, 2, 3])?;
+            wallet.register_channel(id, ChannelState::new(100))?;
         }
 
         let listed_channels = wallet.list_channels();
@@ -247,7 +244,7 @@ mod tests {
 
         // Register multiple channels in the wallet.
         for &id in &channel_ids {
-            wallet.register_channel(id, [100, 0], [0u8; 32], vec![1, 2, 3])?;
+            wallet.register_channel(id, ChannelState::new(100))?;
         }
 
         // Update the Merkle root for the wallet.
