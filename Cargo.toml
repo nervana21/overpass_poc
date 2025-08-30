@@ -29,7 +29,7 @@ uuid = { version = "1.0", features = ["v4"] }
 
 
 # Bitcoin-related Dependencies
-midas = { package = "bitcoin-rpc-midas", version = "0.1.5" }
+midas = { package = "bitcoin-rpc-midas", version = "0.1.6" }
 
 bech32 = "0.11.0"
 bitcoin = { version = "0.32.7", features = ["rand", "serde"] }
