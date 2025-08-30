@@ -1,4 +1,43 @@
-[workspace]
-resolver = "2"
+[package]
+name = "overpass_poc"
+version = "0.1.0"
+edition = "2021"
 
-members = ["overpass_core", "overpass_wasm"]
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+axum = { version = "0.7", features = ["ws"] }
+base64 = "0.22.1"
+chrono = { version = "0.4", features = ["serde"] }
+curve25519-dalek = "4.1.0"
+getrandom = "0.2.10"
+hex = "0.4.3"
+log = "0.4"
+lru = "0.12.0"
+miniscript = "12.3.0"
+plonky2 = "1.0.0"
+plonky2_field = "1.0.0"
+rand = "0.8.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10.6"
+sled = "0.34"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["full", "macros"] }
+tracing = "0.1"
+uuid = { version = "1.0", features = ["v4"] }
+
+
+# Bitcoin-related Dependencies
+corepc-node = { git = "https://github.com/rust-bitcoin/corepc", package = "corepc-node", features = [
+    "28_0",
+] }
+
+midas = { package = "bitcoin-rpc-midas", version = "0.1.5" }
+
+bech32 = "0.11.0"
+bitcoin = { version = "0.32.6", features = ["rand", "serde"] }
+bitcoincore-rpc = "0.19.0"
+secp256k1 = { version = "0.27.0", features = ["serde", "global-context"] }
+bip39 = "2.0.0"
+chacha20poly1305 = "0.10.1"
