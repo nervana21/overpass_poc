@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use super::pedersen_parameters::PedersenParameters;
 use super::state_proof;
 use crate::zkp::helpers::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
-use crate::zkp::helpers::merkle::compute_channel_root;
 use crate::zkp::helpers::state::{generate_state_proof, hash_state};
 use crate::zkp::tree::{MerkleTree, MerkleTreeError};
 
@@ -57,12 +56,8 @@ impl ChannelState {
 
         // compute channel root commitment
         let blinding = generate_random_blinding();
-
-        let commitment = compute_channel_root(
-            channel_id,
-            pedersen_commit(balances.clone(), blinding, params),
-            0,
-        );
+        // receiver balance is 0 for initial state
+        let commitment = pedersen_commit(sender_balance, 0, blinding, &params);
 
         // generate helper proof for the initial state
         let helper_proof = generate_state_proof(
