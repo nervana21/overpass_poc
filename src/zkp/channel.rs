@@ -82,10 +82,12 @@ impl ChannelState {
             return Err(MerkleTreeError::InvalidInput("Invalid state transition".to_string()));
         }
 
+        let old_leaf =
+            hash_state(old_state).map_err(|e| MerkleTreeError::InvalidInput(e.to_string()))?;
         let new_leaf =
             hash_state(self).map_err(|e| MerkleTreeError::InvalidInput(e.to_string()))?;
 
-        smt.update(key, new_leaf)?;
+        smt.update(old_leaf, new_leaf)?;
 
         let new_root = smt.root;
 
