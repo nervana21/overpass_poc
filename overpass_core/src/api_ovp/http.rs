@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct ChannelConfig {
     initial_balance: u64,
     security_bits: usize,
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct StateUpdate {
     nonce: u64,
     balance: u64,
@@ -15,6 +17,7 @@ struct StateUpdate {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct OtherHTLCParameters {
     amount: u64,
     receiver: [u8; 20],
@@ -23,6 +26,7 @@ struct OtherHTLCParameters {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct HTLCState {
     lock_amount: u64,
     lock_script_hash: [u8; 32],
@@ -35,6 +39,7 @@ struct HTLCState {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct OtherWalletState {
     encrypted: bool,
     network: String,
@@ -42,12 +47,14 @@ struct OtherWalletState {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct StealthKeyPair {
     scan_key: String,
     spend_key: String,
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 struct OtherChannelState {
     balances: Vec<u64>,
     nonce: u64,
@@ -72,12 +79,20 @@ pub mod http {
     impl HttpResponse {
         /// Creates a new `HttpResponse` with the given status code, headers, and body.
         pub fn new(status_code: StatusCode, headers: HashMap<String, String>, body: Bytes) -> Self {
-            Self { status_code, headers, body }
+            Self {
+                status_code,
+                headers,
+                body,
+            }
         }
 
         // Creates a new `HttpResponse` with the given status code, headers, and body.
         pub fn ok(body: Bytes) -> Self {
-            Self { status_code: StatusCode::OK, headers: HashMap::new(), body }
+            Self {
+                status_code: StatusCode::OK,
+                headers: HashMap::new(),
+                body,
+            }
         }
     }
 
