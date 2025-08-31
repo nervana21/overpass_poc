@@ -5,3 +5,9 @@
 
 /// Type alias for 32-byte arrays used across cryptographic operations
 pub type Bytes32 = [u8; 32];
+
+/// Type alias for channel identifiers
+pub type ChannelId = [u8; 32];
+
+/// Type alias for wallet identifiers
+pub type WalletId = [u8; 32];
