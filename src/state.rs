@@ -92,7 +92,6 @@ pub fn verify_zk_proof(
     }
 
     let mut hasher = Sha256::new();
-    hasher.update(proof);
     for input in public_inputs {
         hasher.update(input);
     }
