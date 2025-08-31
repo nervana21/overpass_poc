@@ -13,8 +13,8 @@
 
 use thiserror::Error;
 
-use crate::commitments::Bytes32;
 use crate::merkle::hash_pair;
+use crate::types::Bytes32;
 
 /// Represents errors that can occur in the Merkle Tree operations.
 #[derive(Debug, Error)]

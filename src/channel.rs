@@ -6,14 +6,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
+use crate::commitments::{generate_random_blinding, pedersen_commit};
 use crate::pedersen_parameters::PedersenParameters;
 use crate::state::{generate_state_proof, hash_state};
 use crate::state_proof;
 use crate::tree::{MerkleTree, MerkleTreeError};
 
-/// Type alias for channel ID
-pub type ChannelId = Bytes32;
+use crate::types::Bytes32;
 
 /// Represents the state of a unidirectional state channel
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

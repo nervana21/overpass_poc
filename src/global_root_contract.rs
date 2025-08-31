@@ -8,10 +8,10 @@ use thiserror::Error;
 use super::state::StateProof as HelperStateProof;
 use super::state_proof::{self, StateProof};
 use super::tree::{MerkleTree, MerkleTreeError};
-use crate::commitments::Bytes32;
 use crate::merkle::compute_global_root;
 use crate::pedersen_parameters::{PedersenParameters, SerdePedersenParameters};
 use crate::state::verify_wallet_proof;
+use crate::types::Bytes32;
 
 /// Represents errors in GlobalRootContract operations.
 #[derive(Error, Debug)]

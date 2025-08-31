@@ -7,8 +7,8 @@ use rand::RngCore;
 use sha2::{Digest, Sha256};
 
 use crate::pedersen_parameters::PedersenParameters;
+use crate::types::Bytes32;
 
-pub type Bytes32 = [u8; 32];
 pub type Point = RistrettoPoint;
 
 /// Generates a random blinding factor.

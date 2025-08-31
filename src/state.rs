@@ -9,9 +9,9 @@ use plonky2_field::types::{Field, PrimeField64};
 use sha2::{Digest, Sha256};
 
 use crate::channel::ChannelState;
-use crate::commitments::Bytes32;
 use crate::pedersen_parameters::PedersenParameters;
 
+use crate::types::Bytes32;
 /// Converts ChannelState into a 32-byte hash using PoseidonHash.
 pub fn hash_state(state: &ChannelState) -> anyhow::Result<Bytes32> {
     let mut inputs = Vec::new();

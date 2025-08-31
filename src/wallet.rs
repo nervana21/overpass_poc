@@ -7,11 +7,11 @@ use anyhow::Result;
 use serde_json;
 
 use crate::channel::ChannelState;
-use crate::commitments::Bytes32;
 use crate::global_root_contract::{GlobalRootContract, GlobalRootContractError};
 use crate::merkle::{compute_global_root, compute_global_root_from_sorted};
 use crate::pedersen_parameters::PedersenParameters;
 use crate::state::hash_state;
+use crate::types::Bytes32;
 
 /// WalletId type alias
 pub type WalletId = Bytes32;

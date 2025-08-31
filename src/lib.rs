@@ -10,11 +10,12 @@ pub mod state;
 pub mod state_proof;
 pub mod state_transition;
 pub mod tree;
+pub mod types;
 pub mod wallet;
 
 pub use channel::ChannelState;
-pub use commitments::Bytes32;
 pub use pedersen_parameters::PedersenParameters;
 pub use state::StateProof;
 pub use tree::MerkleTree;
+pub use types::Bytes32;
 pub use wallet::WalletContract;
