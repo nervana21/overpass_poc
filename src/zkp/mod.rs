@@ -8,4 +8,4 @@ pub mod pedersen_parameters;
 pub mod state_proof;
 pub mod state_transition;
 pub mod tree;
-pub mod wallet_contract;
+pub mod wallet;
