@@ -13,10 +13,10 @@ use plonky2::plonk::config::{Hasher, PoseidonGoldilocksConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_field::types::{Field, PrimeField64};
 
-use crate::zkp::channel::ChannelState;
-use crate::zkp::helpers::merkle::compute_channel_root;
-use crate::zkp::helpers::state::hash_state;
-use crate::zkp::tree::{MerkleProof, MerkleTree};
+use crate::channel::ChannelState;
+use crate::merkle::compute_channel_root;
+use crate::state::hash_state;
+use crate::tree::{MerkleProof, MerkleTree};
 
 /// Type alias for Poseidon configuration
 type PoseidonConfig = PoseidonGoldilocksConfig;

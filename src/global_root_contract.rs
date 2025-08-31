@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use anyhow::Result;
 use thiserror::Error;
 
-use super::helpers::state::StateProof as HelperStateProof;
+use super::state::StateProof as HelperStateProof;
 use super::state_proof::{self, StateProof};
 use super::tree::{MerkleTree, MerkleTreeError};
-use crate::zkp::helpers::commitments::Bytes32;
-use crate::zkp::helpers::merkle::compute_global_root;
-use crate::zkp::helpers::state::verify_wallet_proof;
-use crate::zkp::pedersen_parameters::{PedersenParameters, SerdePedersenParameters};
+use crate::commitments::Bytes32;
+use crate::merkle::compute_global_root;
+use crate::pedersen_parameters::{PedersenParameters, SerdePedersenParameters};
+use crate::state::verify_wallet_proof;
 
 /// Represents errors in GlobalRootContract operations.
 #[derive(Error, Debug)]
@@ -203,7 +203,7 @@ impl GlobalRootContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zkp::helpers::state::{current_timestamp, generate_state_proof};
+    use crate::state::{current_timestamp, generate_state_proof};
 
     fn setup_test_contract() -> GlobalRootContract {
         let params = PedersenParameters::default();

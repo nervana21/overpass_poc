@@ -13,8 +13,8 @@
 
 use thiserror::Error;
 
-use crate::zkp::helpers::commitments::Bytes32;
-use crate::zkp::helpers::merkle::hash_pair;
+use crate::commitments::Bytes32;
+use crate::merkle::hash_pair;
 
 /// Represents errors that can occur in the Merkle Tree operations.
 #[derive(Debug, Error)]
@@ -267,7 +267,7 @@ mod tests {
     use anyhow::Result;
 
     use super::*;
-    use crate::zkp::helpers::merkle::hash_pair;
+    use crate::merkle::hash_pair;
 
     #[test]
     fn test_new_merkle_tree() {

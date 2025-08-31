@@ -6,7 +6,7 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 
-use crate::zkp::pedersen_parameters::PedersenParameters;
+use crate::pedersen_parameters::PedersenParameters;
 
 pub type Bytes32 = [u8; 32];
 pub type Point = RistrettoPoint;
@@ -46,7 +46,7 @@ pub fn hash_point(point: Point) -> Bytes32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zkp::pedersen_parameters::PedersenParameters;
+    use crate::pedersen_parameters::PedersenParameters;
 
     #[test]
     fn test_generate_random_blinding_length() {

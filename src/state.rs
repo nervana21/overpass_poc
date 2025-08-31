@@ -8,9 +8,9 @@ use plonky2_field::goldilocks_field::GoldilocksField;
 use plonky2_field::types::{Field, PrimeField64};
 use sha2::{Digest, Sha256};
 
-use crate::zkp::channel::ChannelState;
-use crate::zkp::helpers::commitments::Bytes32;
-use crate::zkp::pedersen_parameters::PedersenParameters;
+use crate::channel::ChannelState;
+use crate::commitments::Bytes32;
+use crate::pedersen_parameters::PedersenParameters;
 
 /// Converts ChannelState into a 32-byte hash using PoseidonHash.
 pub fn hash_state(state: &ChannelState) -> anyhow::Result<Bytes32> {
@@ -48,8 +48,8 @@ pub struct StateProof {
     pub params: PedersenParameters,
 }
 
-pub fn convert_helper_proof(proof: StateProof) -> crate::zkp::state_proof::StateProof {
-    crate::zkp::state_proof::StateProof {
+pub fn convert_helper_proof(proof: StateProof) -> crate::state_proof::StateProof {
+    crate::state_proof::StateProof {
         pi: proof.pi,
         public_inputs: proof.public_inputs,
         timestamp: proof.timestamp,

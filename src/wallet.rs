@@ -6,12 +6,15 @@ use std::fmt;
 use anyhow::Result;
 use serde_json;
 
-use crate::zkp::channel::ChannelState;
-use crate::zkp::global_root_contract::{GlobalRootContract, GlobalRootContractError};
-use crate::zkp::helpers::commitments::Bytes32;
-use crate::zkp::helpers::merkle::{compute_global_root, compute_global_root_from_sorted};
-use crate::zkp::helpers::state::hash_state;
-use crate::zkp::pedersen_parameters::PedersenParameters;
+use crate::channel::ChannelState;
+use crate::commitments::Bytes32;
+use crate::global_root_contract::{GlobalRootContract, GlobalRootContractError};
+use crate::merkle::{compute_global_root, compute_global_root_from_sorted};
+use crate::pedersen_parameters::PedersenParameters;
+use crate::state::hash_state;
+
+/// WalletId type alias
+pub type WalletId = Bytes32;
 
 /// Local Verification Layer (Level 2)
 /// Manages channels and generates network proofs.
@@ -37,7 +40,6 @@ pub enum WalletContractError {
     #[error("State proof generation failed: {0}")]
     ProofGenerationError(String),
 }
-
 
 impl From<serde_json::Error> for WalletContractError {
     fn from(err: serde_json::Error) -> Self { WalletContractError::StorageError(err.to_string()) }

@@ -6,11 +6,11 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use super::pedersen_parameters::PedersenParameters;
-use super::state_proof;
-use crate::zkp::helpers::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
-use crate::zkp::helpers::state::{generate_state_proof, hash_state};
-use crate::zkp::tree::{MerkleTree, MerkleTreeError};
+use crate::commitments::{generate_random_blinding, pedersen_commit, Bytes32};
+use crate::pedersen_parameters::PedersenParameters;
+use crate::state::{generate_state_proof, hash_state};
+use crate::state_proof;
+use crate::tree::{MerkleTree, MerkleTreeError};
 
 /// Type alias for channel ID
 pub type ChannelId = Bytes32;

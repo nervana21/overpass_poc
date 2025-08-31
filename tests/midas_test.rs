@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Ok, Result};
 use midas::*;
-use overpass_poc::zkp::channel::ChannelState;
-use overpass_poc::zkp::helpers::{compute_channel_root, hash_state};
-use overpass_poc::zkp::state_transition::apply_transition;
-use overpass_poc::zkp::tree::MerkleTree;
+use overpass_poc::channel::ChannelState;
+use overpass_poc::merkle::compute_channel_root;
+use overpass_poc::state::hash_state;
+use overpass_poc::state_transition::apply_transition;
+use overpass_poc::tree::MerkleTree;
 use serde_json::json;
 
 #[tokio::test]
