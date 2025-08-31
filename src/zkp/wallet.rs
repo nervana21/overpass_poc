@@ -11,7 +11,6 @@ use crate::zkp::global_root_contract::{GlobalRootContract, GlobalRootContractErr
 use crate::zkp::helpers::commitments::Bytes32;
 use crate::zkp::helpers::merkle::{compute_global_root, compute_global_root_from_sorted};
 use crate::zkp::helpers::state::hash_state;
-use crate::zkp::mobile_optimized_storage::{MobileOptimizedStorage, StorageError};
 use crate::zkp::pedersen_parameters::PedersenParameters;
 
 /// Local Verification Layer (Level 2)
@@ -21,7 +20,6 @@ pub struct WalletContract {
     pub params: PedersenParameters,
     pub channels: HashMap<Bytes32, ChannelState>,
     pub merkle_root: Bytes32,
-    pub storage: MobileOptimizedStorage,
     pub global_contract: GlobalRootContract,
 }
 
@@ -40,9 +38,6 @@ pub enum WalletContractError {
     ProofGenerationError(String),
 }
 
-impl From<StorageError> for WalletContractError {
-    fn from(err: StorageError) -> Self { WalletContractError::StorageError(err.to_string()) }
-}
 
 impl From<serde_json::Error> for WalletContractError {
     fn from(err: serde_json::Error) -> Self { WalletContractError::StorageError(err.to_string()) }
@@ -63,7 +58,6 @@ impl WalletContract {
             params,
             channels: HashMap::new(),
             merkle_root,
-            storage: MobileOptimizedStorage::new(100, 30 * 24 * 3600),
             global_contract,
         }
     }

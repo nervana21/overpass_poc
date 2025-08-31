@@ -1,9 +1,7 @@
-pub mod bitcoin_ephemeral_state;
+
 pub mod channel;
-pub mod compressed_transaction;
 pub mod global_root_contract;
 pub mod helpers;
-pub mod mobile_optimized_storage;
 pub mod pedersen_parameters;
 pub mod state_proof;
 pub mod state_transition;
