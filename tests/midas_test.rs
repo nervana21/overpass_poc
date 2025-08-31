@@ -8,7 +8,7 @@ use serde_json::json;
 
 #[tokio::test]
 async fn test_midas() -> Result<()> {
-    println!("\n=== Starting E2E Midas Test ===");
+    println!("\n=== Starting E2E Test ===");
 
     println!("\n=== Creating Channel States ===");
     let initial_balance = 100u64;
@@ -36,12 +36,10 @@ async fn test_midas() -> Result<()> {
         u32::from_le_bytes(transition_data[0..4].try_into().unwrap())
     );
 
-    // Apply transition to get the next state
     println!("\n=== Applying Transition ===");
     let next_state = apply_transition(channel_id, &initial_state, &transition_data)?;
     println!("Next state created: {:?}", next_state);
 
-    // Compute state hashes
     println!("\n=== Computing State Hashes ===");
     let initial_state_bytes = hash_state(&initial_state)?;
     println!("Initial state hash bytes: {:?}", initial_state_bytes);
@@ -49,7 +47,6 @@ async fn test_midas() -> Result<()> {
     let next_state_bytes = hash_state(&next_state)?;
     println!("Next state hash bytes: {:?}", next_state_bytes);
 
-    // Initialize Merkle tree and update with states
     println!("\n=== Updating Merkle Tree ===");
     let mut smt = MerkleTree::new();
 
@@ -73,13 +70,13 @@ async fn test_midas() -> Result<()> {
     }
     println!("Merkle proof verified successfully");
 
-    println!("\n=== Building and Sending P2TR Midas Transaction ===");
+    println!("\n=== Building and Sending P2TR Transaction ===");
 
     // Start with a fresh test-node client
     let mut client = BitcoinTestClient::new_with_network(Network::Regtest).await?;
 
     // Ensure a wallet exists before using wallet functionality
-    let _wallet_name = client.ensure_default_wallet("test_wallet").await?;
+    let _test_wallet = client.ensure_default_wallet("test_wallet").await?;
 
     // Check initial chain state
     let info = client.getblockchaininfo().await?;
