@@ -198,12 +198,12 @@ mod tests {
         let channel_id = [2u8; 32];
 
         // Register new channel
-        let result = wallet.register_channel(channel_id, ChannelState::new(100))?;
+        let result = wallet.register_channel(channel_id, ChannelState::new(100, Vec::new()).unwrap())?;
         assert!(result);
         assert!(wallet.has_channel(&channel_id));
 
         // Try registering same channel again
-        let result = wallet.register_channel(channel_id, ChannelState::new(200))?;
+        let result = wallet.register_channel(channel_id, ChannelState::new(200, Vec::new()).unwrap())?;
         assert!(!result);
 
         Ok(())
@@ -216,7 +216,7 @@ mod tests {
 
         // Register multiple channels
         for &id in &channel_ids {
-            wallet.register_channel(id, ChannelState::new(100))?;
+            wallet.register_channel(id, ChannelState::new(100, Vec::new()).unwrap())?;
         }
 
         let listed_channels = wallet.list_channels();
@@ -240,7 +240,7 @@ mod tests {
 
         // Register multiple channels in the wallet.
         for &id in &channel_ids {
-            wallet.register_channel(id, ChannelState::new(100))?;
+            wallet.register_channel(id, ChannelState::new(100, Vec::new()).unwrap())?;
         }
 
         // Update the Merkle root for the wallet.

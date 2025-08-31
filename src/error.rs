@@ -59,6 +59,10 @@ pub enum ZkpError {
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ChannelError {
+    /// Initial sender balance cannot be zero
+    #[error("Initial sender balance cannot be zero")]
+    InvalidZeroBalance,
+
     /// Insufficient balance for transfer
     #[error("Insufficient balance")]
     InsufficientBalance,
@@ -70,6 +74,18 @@ pub enum ChannelError {
     /// Nonce overflow: cannot increment further
     #[error("Nonce overflow: cannot increment further")]
     ChannelNonceOverflow,
+
+    /// Invalid nonce increment
+    #[error("Invalid nonce increment")]
+    InvalidNonceIncrement,
+
+    /// Transfer amount cannot be zero
+    #[error("Transfer amount cannot be zero")]
+    InvalidZeroTransfer,
+
+    /// Invalid balance change
+    #[error("Invalid balance change")]
+    InvalidBalanceChange,
 }
 
 /// Errors that can occur during wallet operations

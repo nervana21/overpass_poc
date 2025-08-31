@@ -14,7 +14,6 @@ use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_field::types::{Field, PrimeField64};
 
 use crate::channel::ChannelState;
-use crate::merkle::compute_channel_root;
 use crate::state::hash_state;
 use crate::tree::{MerkleProof, MerkleTree};
 
@@ -225,20 +224,13 @@ pub fn apply_transition(
     // Increment nonce strictly by +1
     let new_nonce = initial_state.nonce.checked_add(1).ok_or_else(|| anyhow!("Nonce overflow"))?;
 
-    let mut new_state = ChannelState {
+    let new_state = ChannelState {
         sender_balance: new_sender_balance,
         receiver_balance: new_receiver_balance,
         nonce: new_nonce,
         metadata: initial_state.metadata.clone(),
-        merkle_root: [0u8; 32],
         proof: None,
     };
-
-    new_state.merkle_root = compute_channel_root(
-        channel_id,
-        hash_state(&new_state)?, // Commitment hash based on updated state
-        new_nonce,
-    );
 
     Ok(new_state)
 }

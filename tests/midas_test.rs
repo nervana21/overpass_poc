@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Ok, Result};
 use midas::*;
 use overpass_poc::channel::ChannelState;
-use overpass_poc::merkle::compute_channel_root;
 use overpass_poc::state::hash_state;
 use overpass_poc::state_transition::apply_transition;
 use overpass_poc::tree::MerkleTree;
@@ -13,19 +12,17 @@ async fn test_midas() -> Result<()> {
 
     println!("\n=== Creating Channel States ===");
     let initial_balance = 100u64;
-    let mut initial_state = ChannelState {
+    let initial_state = ChannelState {
         sender_balance: initial_balance,
         receiver_balance: 0,
         nonce: 0,
         metadata: vec![],
-        merkle_root: [0u8; 32],
         proof: None,
     };
     let channel_id = [1u8; 32];
 
     // Compute and update the initial Merkle root
-    initial_state.merkle_root =
-        compute_channel_root(channel_id, hash_state(&initial_state)?, initial_state.nonce);
+    initial_state.compute_merkle_root(channel_id)?;
 
     println!("Initial state created: {:?}", initial_state);
 
