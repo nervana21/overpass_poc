@@ -37,7 +37,7 @@ async fn test_midas() -> Result<()> {
     );
 
     println!("\n=== Applying Transition ===");
-    let next_state = apply_transition(channel_id, &initial_state, &transition_data)?;
+    let next_state = apply_transition(&initial_state, &transition_data)?;
     println!("Next state created: {:?}", next_state);
 
     println!("\n=== Computing State Hashes ===");

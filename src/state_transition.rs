@@ -77,13 +77,12 @@ impl StateTransitionCircuit {
     /// Generates a zero-knowledge proof for a state transition.
     pub fn generate_zkp(
         &self,
-        channel_id: [u8; 32],
         initial_state: &ChannelState,
         transition_data: &[u8; 32],
     ) -> Result<ProofWithPublicInputs<GoldilocksField, PoseidonConfig, 2>> {
         let mut pw = PartialWitness::new();
 
-        let next_state = apply_transition(channel_id, initial_state, transition_data)
+        let next_state = apply_transition(initial_state, transition_data)
             .context("Failed to apply transition to initial state")?;
 
         // Serialize and hash the initial and next states
@@ -199,7 +198,6 @@ impl Default for StateTransitionCircuit {
 
 /// Applies transition data to the initial state to produce the next state.
 pub fn apply_transition(
-    channel_id: [u8; 32],
     initial_state: &ChannelState,
     transition_data: &[u8; 32],
 ) -> Result<ChannelState> {
