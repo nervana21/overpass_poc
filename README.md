@@ -81,7 +81,6 @@ Requires a working `bitcoind` executable.
 
 Documentation:
 
-- [Perfect Mathematical Composability Blueprint](docs/blueprint.md)
 - [Overpass Paper](docs/overpass_paper.pdf)
 - [Zero Knowledge Authentication](docs/zkAt.pdf)
 
