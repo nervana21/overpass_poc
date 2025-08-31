@@ -81,7 +81,7 @@ Requires a working `bitcoind` executable.
 
 Documentation:
 
-- [Overpass Paper](docs/overpass_paper.pdf)
+- [Unidirectional State Channels](docs/overpass.pdf)
 - [Zero Knowledge Authentication](docs/zkAt.pdf)
 
 License: MIT
